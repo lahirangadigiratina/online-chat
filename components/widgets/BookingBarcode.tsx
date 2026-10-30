@@ -1,37 +1,35 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-
 interface Props {
   value: string;
 }
 
+/** Mock barcode for demo — replace with jsbarcode or server-generated image in production */
 export function BookingBarcode({ value }: Props) {
-  const svgRef = useRef<SVGSVGElement>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const JsBarcode = (await import("jsbarcode")).default;
-        if (cancelled || !svgRef.current) return;
-        JsBarcode(svgRef.current, value, {
-          format: "CODE128",
-          width: 1.5,
-          height: 48,
-          displayValue: false,
-          margin: 8,
-        });
-      } catch {
-        /* jsbarcode optional until npm install */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [value]);
+  const bars = value
+    .split("")
+    .flatMap((ch, i) => {
+      const w = (ch.charCodeAt(0) % 3) + 1;
+      return [
+        { w, dark: i % 2 === 0 },
+        { w: 1, dark: false },
+      ];
+    })
+    .slice(0, 48);
 
   return (
-    <svg ref={svgRef} className="mx-auto max-w-full" role="img" aria-label={`Barcode ${value}`} />
+    <div
+      className="mx-auto flex max-w-full items-end justify-center gap-px px-2 py-3"
+      role="img"
+      aria-label={`Barcode ${value}`}
+    >
+      {bars.map((bar, i) => (
+        <span
+          key={i}
+          className={bar.dark ? "bg-brand-black" : "bg-transparent"}
+          style={{ width: bar.w, height: 48 }}
+        />
+      ))}
+    </div>
   );
 }

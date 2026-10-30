@@ -13,6 +13,16 @@ Open [http://localhost:3000](http://localhost:3000).
 
 Landing screen → chat flow through **DONE** (confirm, payment, barcode).
 
+## Deploy on Vercel
+
+This is a **Next.js** app. In the Vercel project **Settings → General → Build & Development Settings**:
+
+- **Framework Preset:** Next.js  
+- **Build Command:** `npm run build` (default)  
+- **Output Directory:** leave **empty** (do not set `public` — that is only for static assets, not the build output)
+
+Repo includes `vercel.json` with `"framework": "nextjs"` so Vercel uses the correct pipeline.
+
 ## Step order
 
 `SUBURB` → `DROP_OFF_POINT` → `PARCEL_SIZE` → `PACKAGING` → `RECEIVER_ADDRESS` → `DELIVERY_METHOD` → `SENDER_DETAILS` → `RECEIVER_DETAILS` → `CONTENTS` → `CONFIRM` → `PAYMENT_METHOD` → `PAYMENT` → `DONE`
