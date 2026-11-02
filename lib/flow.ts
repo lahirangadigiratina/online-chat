@@ -22,21 +22,21 @@ const DOWNSTREAM_FROM_DELIVERY: (keyof Booking)[] = [
 ];
 
 export const STEP_ORDER: StepId[] = [
-  "SUBURB",
-  "DROP_OFF_POINT",
   "PARCEL_SIZE",
+  "ROUTE",
   "PACKAGING",
-  "RECEIVER_ADDRESS",
   "DELIVERY_METHOD",
   "SENDER_MOBILE",
-  "SENDER_NAME",
-  "SENDER_EMAIL",
   "SENDER_BUSINESS",
+  "SENDER_FIRST_NAME",
+  "SENDER_LAST_NAME",
+  "SENDER_EMAIL",
   "RECEIVER_NAME",
   "RECEIVER_EMAIL",
   "RECEIVER_MOBILE",
   "RECEIVER_NOTIFY",
-  "CONTENTS",
+  "CONTENTS_CATEGORY",
+  "CONTENTS_VALUE",
   "CONFIRM",
   "PAYMENT_METHOD",
   "PAYMENT",
@@ -44,38 +44,10 @@ export const STEP_ORDER: StepId[] = [
 ];
 
 export const STEPS: Record<StepId, StepConfig> = {
-  SUBURB: {
-    id: "SUBURB",
-    botMessage:
-      "Which suburb are you sending from? You don't need the street address.",
-    bookingKey: "senderSuburb",
+  ROUTE: {
+    id: "ROUTE",
+    botMessage: "Where are you sending from?",
     invalidateKeys: [
-      "senderSuburb",
-      "dropOffPoint",
-      "parcelSize",
-      "packaging",
-      "receiverAddress",
-      "deliveryMethod",
-      "deliveryFee",
-      "price",
-      "estimatedDelivery",
-      "sender",
-      "receiver",
-      "contents",
-      "agreements",
-      "coupon",
-      "paymentMethod",
-      "bookingRef",
-      "paidOnline",
-    ],
-  },
-  DROP_OFF_POINT: {
-    id: "DROP_OFF_POINT",
-    botMessage: (b) =>
-      `Here are PARCELPOINT drop-off points near ${b.senderSuburb ?? "your suburb"}. Which suits you?`,
-    bookingKey: "dropOffPoint",
-    invalidateKeys: [
-      "dropOffPoint",
       "deliveryMethod",
       "deliveryFee",
       "price",
@@ -92,12 +64,11 @@ export const STEPS: Record<StepId, StepConfig> = {
   },
   PARCEL_SIZE: {
     id: "PARCEL_SIZE",
-    botMessage: "What size is your parcel?",
+    botMessage: "What is the weight of your parcel?",
     bookingKey: "parcelSize",
     invalidateKeys: [
       "parcelSize",
       "packaging",
-      "receiverAddress",
       "deliveryMethod",
       "deliveryFee",
       "price",
@@ -118,7 +89,6 @@ export const STEPS: Record<StepId, StepConfig> = {
     bookingKey: "packaging",
     invalidateKeys: [
       "packaging",
-      "receiverAddress",
       "deliveryMethod",
       "deliveryFee",
       "price",
@@ -133,15 +103,6 @@ export const STEPS: Record<StepId, StepConfig> = {
       "paidOnline",
     ],
   },
-  RECEIVER_ADDRESS: {
-    id: "RECEIVER_ADDRESS",
-    botMessage: "Where is it going?",
-    bookingKey: "receiverAddress",
-    invalidateKeys: [
-      "receiverAddress",
-      ...DOWNSTREAM_FROM_DELIVERY,
-    ],
-  },
   DELIVERY_METHOD: {
     id: "DELIVERY_METHOD",
     botMessage: "How would you like it to be received?",
@@ -150,7 +111,7 @@ export const STEPS: Record<StepId, StepConfig> = {
   },
   SENDER_MOBILE: {
     id: "SENDER_MOBILE",
-    botMessage: "Great, now your details. What's your mobile number?",
+    botMessage: "Now your sender details. What's your mobile number?",
     bookingKey: "sender",
     invalidateKeys: [
       "sender",
@@ -163,9 +124,37 @@ export const STEPS: Record<StepId, StepConfig> = {
       "paidOnline",
     ],
   },
-  SENDER_NAME: {
-    id: "SENDER_NAME",
-    botMessage: "What's your first and last name?",
+  SENDER_BUSINESS: {
+    id: "SENDER_BUSINESS",
+    botMessage: "Business name (optional — type Skip to continue)",
+    invalidateKeys: [
+      "sender",
+      "receiver",
+      "contents",
+      "agreements",
+      "coupon",
+      "paymentMethod",
+      "bookingRef",
+      "paidOnline",
+    ],
+  },
+  SENDER_FIRST_NAME: {
+    id: "SENDER_FIRST_NAME",
+    botMessage: "What's your first name?",
+    invalidateKeys: [
+      "sender",
+      "receiver",
+      "contents",
+      "agreements",
+      "coupon",
+      "paymentMethod",
+      "bookingRef",
+      "paidOnline",
+    ],
+  },
+  SENDER_LAST_NAME: {
+    id: "SENDER_LAST_NAME",
+    botMessage: "What's your last name?",
     invalidateKeys: [
       "sender",
       "receiver",
@@ -180,20 +169,6 @@ export const STEPS: Record<StepId, StepConfig> = {
   SENDER_EMAIL: {
     id: "SENDER_EMAIL",
     botMessage: "What's your email address?",
-    invalidateKeys: [
-      "sender",
-      "receiver",
-      "contents",
-      "agreements",
-      "coupon",
-      "paymentMethod",
-      "bookingRef",
-      "paidOnline",
-    ],
-  },
-  SENDER_BUSINESS: {
-    id: "SENDER_BUSINESS",
-    botMessage: "Business name? (optional — type Skip to continue)",
     invalidateKeys: [
       "sender",
       "receiver",
@@ -258,10 +233,21 @@ export const STEPS: Record<StepId, StepConfig> = {
       "paidOnline",
     ],
   },
-  CONTENTS: {
-    id: "CONTENTS",
+  CONTENTS_CATEGORY: {
+    id: "CONTENTS_CATEGORY",
     botMessage: "What's inside your parcel?",
-    bookingKey: "contents",
+    invalidateKeys: [
+      "contents",
+      "agreements",
+      "coupon",
+      "paymentMethod",
+      "bookingRef",
+      "paidOnline",
+    ],
+  },
+  CONTENTS_VALUE: {
+    id: "CONTENTS_VALUE",
+    botMessage: "What's the parcel value?",
     invalidateKeys: [
       "contents",
       "agreements",
@@ -316,16 +302,43 @@ export function getStepIndex(stepId: StepId): number {
   return STEP_ORDER.indexOf(stepId);
 }
 
-export function getNextStep(current: StepId): StepId | null {
-  const i = getStepIndex(current);
-  if (i < 0 || i >= STEP_ORDER.length - 1) return null;
-  return STEP_ORDER[i + 1];
+/** Carry-on size includes packaging — no separate packaging step. */
+export function skipsPackagingStep(booking: Booking): boolean {
+  return booking.parcelSize === "carry_on";
 }
 
-export function getPreviousStep(current: StepId): StepId | null {
-  const i = getStepIndex(current);
+export function getNextStep(
+  current: StepId,
+  booking?: Booking
+): StepId | null {
+  let i = getStepIndex(current);
+  if (i < 0) return null;
+  while (i < STEP_ORDER.length - 1) {
+    i += 1;
+    const candidate = STEP_ORDER[i];
+    if (candidate === "PACKAGING" && booking && skipsPackagingStep(booking)) {
+      continue;
+    }
+    return candidate;
+  }
+  return null;
+}
+
+export function getPreviousStep(
+  current: StepId,
+  booking?: Booking
+): StepId | null {
+  let i = getStepIndex(current);
   if (i <= 0) return null;
-  return STEP_ORDER[i - 1];
+  while (i > 0) {
+    i -= 1;
+    const candidate = STEP_ORDER[i];
+    if (candidate === "PACKAGING" && booking && skipsPackagingStep(booking)) {
+      continue;
+    }
+    return candidate;
+  }
+  return null;
 }
 
 export function clearFromStep(booking: Booking, fromStep: StepId): Booking {
@@ -376,15 +389,26 @@ export function validateStep(
   booking: Booking
 ): { ok: true; patch: Partial<Booking> } | { ok: false; error: string } {
   switch (stepId) {
-    case "SUBURB": {
-      const s = String(value ?? "").trim();
-      if (!s) return { ok: false, error: "Please enter a suburb." };
-      return { ok: true, patch: { senderSuburb: s } };
-    }
-    case "DROP_OFF_POINT": {
-      const p = value as Booking["dropOffPoint"];
-      if (!p?.id) return { ok: false, error: "Please select a drop-off point." };
-      return { ok: true, patch: { dropOffPoint: p } };
+    case "ROUTE": {
+      const v = value as {
+        senderSuburb: string;
+        dropOffPoint: Booking["dropOffPoint"];
+        receiverAddress: string;
+      };
+      const suburb = String(v?.senderSuburb ?? "").trim();
+      const address = String(v?.receiverAddress ?? "").trim();
+      if (!suburb) return { ok: false, error: "Please enter a sending suburb." };
+      if (!v?.dropOffPoint?.id) {
+        return { ok: false, error: "Please select a drop-off point." };
+      }
+      return {
+        ok: true,
+        patch: {
+          senderSuburb: suburb,
+          dropOffPoint: v.dropOffPoint,
+          ...(address ? { receiverAddress: address } : {}),
+        },
+      };
     }
     case "PARCEL_SIZE": {
       const sizes = ["satchel", "shoebox", "briefcase", "carry_on"] as const;
@@ -399,17 +423,12 @@ export function validateStep(
       }
       return { ok: true, patch: { packaging: value } };
     }
-    case "RECEIVER_ADDRESS": {
-      const a = String(value ?? "").trim();
-      if (!a) return { ok: false, error: "Please enter a delivery address." };
-      return { ok: true, patch: { receiverAddress: a } };
-    }
     case "DELIVERY_METHOD": {
       const m = value as Booking["deliveryMethod"];
       if (m !== "door" && m !== "collect") {
         return { ok: false, error: "Please choose a delivery method." };
       }
-      if (!booking.parcelSize || !booking.senderSuburb || !booking.receiverAddress) {
+      if (!booking.parcelSize || !booking.senderSuburb) {
         return { ok: false, error: "Complete earlier steps first." };
       }
       return { ok: true, patch: { deliveryMethod: m } };
@@ -426,15 +445,27 @@ export function validateStep(
         },
       };
     }
-    case "SENDER_NAME": {
-      const parsed = parseFullName(String(value ?? ""));
-      if (!parsed) {
-        return { ok: false, error: "Please enter first and last name." };
+    case "SENDER_FIRST_NAME": {
+      const firstName = String(value ?? "").trim();
+      if (!firstName) {
+        return { ok: false, error: "Please enter your first name." };
       }
       return {
         ok: true,
         patch: {
-          sender: { ...baseSender(booking), ...parsed },
+          sender: { ...baseSender(booking), firstName },
+        },
+      };
+    }
+    case "SENDER_LAST_NAME": {
+      const lastName = String(value ?? "").trim();
+      if (!lastName) {
+        return { ok: false, error: "Please enter your last name." };
+      }
+      return {
+        ok: true,
+        patch: {
+          sender: { ...baseSender(booking), lastName },
         },
       };
     }
@@ -517,19 +548,55 @@ export function validateStep(
         },
       };
     }
-    case "CONTENTS": {
-      const c = value as Booking["contents"];
-      if (!c?.category) return { ok: false, error: "Select a category." };
-      if (!c.value || c.value <= 0) {
+    case "CONTENTS_CATEGORY": {
+      const category = String(value ?? "").trim();
+      if (!category) {
+        return { ok: false, error: "Select or describe what's inside." };
+      }
+      return {
+        ok: true,
+        patch: {
+          contents: {
+            category,
+            value: booking.contents?.value ?? 0,
+            signatureOnDelivery:
+              booking.contents?.signatureOnDelivery ?? false,
+            parcelProtection: booking.contents?.parcelProtection ?? false,
+            photo: booking.contents?.photo,
+            reference: booking.contents?.reference,
+          },
+        },
+      };
+    }
+    case "CONTENTS_VALUE": {
+      const num =
+        typeof value === "number" ? value : parseFloat(String(value ?? ""));
+      if (!booking.contents?.category) {
+        return { ok: false, error: "Choose what's inside first." };
+      }
+      if (!num || num <= 0) {
         return { ok: false, error: "Parcel value must be greater than $0." };
       }
-      if (c.value > MAX_PARCEL_VALUE) {
+      if (num > MAX_PARCEL_VALUE) {
         return {
           ok: false,
           error: `Maximum parcel value is $${MAX_PARCEL_VALUE.toLocaleString()}.`,
         };
       }
-      return { ok: true, patch: { contents: c } };
+      return {
+        ok: true,
+        patch: {
+          contents: {
+            category: booking.contents.category,
+            value: num,
+            signatureOnDelivery:
+              booking.contents?.signatureOnDelivery ?? false,
+            parcelProtection: booking.contents?.parcelProtection ?? false,
+            photo: booking.contents?.photo,
+            reference: booking.contents?.reference,
+          },
+        },
+      };
     }
     case "CONFIRM": {
       const payload = value as {
@@ -566,26 +633,24 @@ export function validateStep(
 
 export function isStepSatisfied(stepId: StepId, booking: Booking): boolean {
   switch (stepId) {
-    case "SUBURB":
-      return !!booking.senderSuburb;
-    case "DROP_OFF_POINT":
-      return !!booking.dropOffPoint;
+    case "ROUTE":
+      return !!booking.senderSuburb && !!booking.dropOffPoint;
     case "PARCEL_SIZE":
       return !!booking.parcelSize;
     case "PACKAGING":
-      return booking.packaging !== undefined;
-    case "RECEIVER_ADDRESS":
-      return !!booking.receiverAddress;
+      return booking.packaging !== undefined || skipsPackagingStep(booking);
     case "DELIVERY_METHOD":
       return !!booking.deliveryMethod && booking.deliveryFee != null;
     case "SENDER_MOBILE":
       return !!normalizeAuMobile(booking.sender?.mobile ?? "");
-    case "SENDER_NAME":
-      return !!(booking.sender?.firstName && booking.sender?.lastName);
-    case "SENDER_EMAIL":
-      return !!booking.sender?.email && isValidEmail(booking.sender.email);
     case "SENDER_BUSINESS":
       return booking.sender?.businessStepDone === true;
+    case "SENDER_FIRST_NAME":
+      return !!booking.sender?.firstName?.trim();
+    case "SENDER_LAST_NAME":
+      return !!booking.sender?.lastName?.trim();
+    case "SENDER_EMAIL":
+      return !!booking.sender?.email && isValidEmail(booking.sender.email);
     case "RECEIVER_NAME":
       return !!(booking.receiver?.firstName && booking.receiver?.lastName);
     case "RECEIVER_EMAIL":
@@ -594,8 +659,14 @@ export function isStepSatisfied(stepId: StepId, booking: Booking): boolean {
       return !!normalizeAuMobile(booking.receiver?.mobile ?? "");
     case "RECEIVER_NOTIFY":
       return booking.receiver?.notifyStepDone === true;
-    case "CONTENTS":
-      return !!booking.contents;
+    case "CONTENTS_CATEGORY":
+      return !!booking.contents?.category;
+    case "CONTENTS_VALUE":
+      return (
+        !!booking.contents?.category &&
+        !!booking.contents.value &&
+        booking.contents.value > 0
+      );
     case "CONFIRM":
       return (
         !!booking.agreements?.terms && !!booking.agreements?.noDangerousGoods
@@ -629,8 +700,11 @@ export function summarizeStep(stepId: StepId, booking: Booking): string {
       return booking.receiver?.noTrackingNotifications
         ? "No tracking notifications to receiver"
         : "Send tracking updates to receiver";
-    case "CONTENTS": {
-      const c = booking.contents!;
+    case "CONTENTS_CATEGORY":
+      return booking.contents?.category ?? "";
+    case "CONTENTS_VALUE": {
+      const c = booking.contents;
+      if (!c) return "";
       const parts = [c.category, `$${c.value}`];
       if (c.signatureOnDelivery) parts.push("Signature");
       if (c.parcelProtection) parts.push("Protection");

@@ -5,6 +5,8 @@ import type { DropOffPoint } from "@/lib/types";
 
 const PAGE_SIZE = 3;
 
+const COMPACT_VISIBLE = 3;
+
 interface Props {
   suburb: string;
   onSelect: (point: DropOffPoint) => void;
@@ -12,6 +14,8 @@ interface Props {
   selectedId?: string;
   page?: number;
   onPageCount?: (totalPages: number) => void;
+  /** Show 3 cards + "Show more" instead of paginated header */
+  compactExpand?: boolean;
 }
 
 export function DropOffList({
@@ -21,9 +25,11 @@ export function DropOffList({
   selectedId,
   page = 0,
   onPageCount,
+  compactExpand,
 }: Props) {
   const [points, setPoints] = useState<DropOffPoint[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -33,16 +39,21 @@ export function DropOffList({
       .finally(() => setLoading(false));
   }, [suburb]);
 
+  useEffect(() => {
+    setExpanded(false);
+  }, [suburb]);
+
   const totalPages = Math.max(1, Math.ceil(points.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages - 1);
-  const visible = points.slice(
-    safePage * PAGE_SIZE,
-    safePage * PAGE_SIZE + PAGE_SIZE
-  );
+  const visible = compactExpand
+    ? expanded
+      ? points
+      : points.slice(0, COMPACT_VISIBLE)
+    : points.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
 
   useEffect(() => {
-    onPageCount?.(totalPages);
-  }, [totalPages, onPageCount]);
+    if (!compactExpand) onPageCount?.(totalPages);
+  }, [totalPages, onPageCount, compactExpand]);
 
   if (loading) {
     return <p className="text-sm text-neutral-500">Loading nearby points…</p>;
@@ -92,6 +103,15 @@ export function DropOffList({
           </button>
         );
       })}
+      {compactExpand && points.length > COMPACT_VISIBLE && !expanded && (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="w-full rounded-xl border border-dashed border-neutral-300 py-2 text-sm font-medium text-brand-orange hover:bg-orange-50/50"
+        >
+          Show more ({points.length - COMPACT_VISIBLE} more)
+        </button>
+      )}
     </div>
   );
 }

@@ -5,10 +5,11 @@ import { useCallback, useEffect, useState } from "react";
 interface Props {
   onSelect: (suburb: string) => void;
   disabled?: boolean;
+  value?: string;
 }
 
-export function SuburbSearch({ onSelect, disabled }: Props) {
-  const [query, setQuery] = useState("");
+export function SuburbSearch({ onSelect, disabled, value }: Props) {
+  const [query, setQuery] = useState(value ?? "");
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
 
@@ -25,6 +26,12 @@ export function SuburbSearch({ onSelect, disabled }: Props) {
     }, 200);
     return () => clearTimeout(t);
   }, [query]);
+
+  useEffect(() => {
+    if (value !== undefined && value !== query) {
+      setQuery(value);
+    }
+  }, [value, query]);
 
   const pick = useCallback(
     (s: string) => {

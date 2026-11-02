@@ -5,21 +5,21 @@ import { useChatStore } from "@/lib/store";
 import type {
   Booking,
   DeliveryMethod,
-  DropOffPoint,
   ParcelSize,
   PaymentMethod,
   StepId,
   WidgetDraft,
 } from "@/lib/types";
 import { ConfirmStep } from "@/components/widgets/ConfirmStep";
-import { ContentsForm } from "@/components/widgets/ContentsForm";
+import { ContentsCategoryPicker } from "@/components/widgets/ContentsCategoryPicker";
+import { ContentsValueForm } from "@/components/widgets/ContentsValueForm";
 import { DeliveryOptions } from "@/components/widgets/DeliveryOptions";
 import { DoneScreen } from "@/components/widgets/DoneScreen";
-import { DropOffList } from "@/components/widgets/DropOffList";
 import { PackagingPicker } from "@/components/widgets/PackagingPicker";
 import { ParcelSizePicker } from "@/components/widgets/ParcelSizePicker";
 import { PaymentForm } from "@/components/widgets/PaymentForm";
 import { PaymentMethodPicker } from "@/components/widgets/PaymentMethodPicker";
+import { RouteCard } from "@/components/widgets/RouteCard";
 
 import { STEPS_WITH_WIDGET_PANEL } from "@/lib/widget-steps";
 
@@ -28,20 +28,14 @@ export { STEPS_WITH_WIDGET_PANEL };
 interface Props {
   stepId: StepId;
   booking: Booking;
-  optionsPage?: number;
-  onDropOffPageCount?: (totalPages: number) => void;
 }
 
 function draftForStep(draft: WidgetDraft | null, stepId: StepId): WidgetDraft | null {
   return draft?.stepId === stepId ? draft : null;
 }
 
-export function StepWidget({
-  stepId,
-  booking,
-  optionsPage = 0,
-  onDropOffPageCount,
-}: Props) {
+export function StepWidget({ stepId, booking }: Props) {
+  const submitStep = useChatStore((s) => s.submitStep);
   const setWidgetDraft = useChatStore((s) => s.setWidgetDraft);
   const widgetDraft = useChatStore((s) => s.widgetDraft);
   const jumpToStep = useChatStore((s) => s.jumpToStep);
@@ -49,27 +43,8 @@ export function StepWidget({
   const startOver = useChatStore((s) => s.startOver);
 
   switch (stepId) {
-    case "DROP_OFF_POINT": {
-      const draft = draftForStep(widgetDraft, "DROP_OFF_POINT");
-      return (
-        <DropOffList
-          suburb={booking.senderSuburb ?? ""}
-          page={optionsPage}
-          onPageCount={onDropOffPageCount}
-          selectedId={
-            (draft?.value as DropOffPoint | undefined)?.id ??
-            booking.dropOffPoint?.id
-          }
-          onSelect={(p: DropOffPoint) =>
-            setWidgetDraft({
-              stepId: "DROP_OFF_POINT",
-              value: p,
-              summary: p.name,
-            })
-          }
-        />
-      );
-    }
+    case "ROUTE":
+      return <RouteCard booking={booking} />;
     case "PARCEL_SIZE": {
       const draft = draftForStep(widgetDraft, "PARCEL_SIZE");
       return (
@@ -126,19 +101,42 @@ export function StepWidget({
         />
       );
     }
-    case "CONTENTS":
+    case "CONTENTS_CATEGORY": {
+      const draft = draftForStep(widgetDraft, "CONTENTS_CATEGORY");
       return (
-        <ContentsForm
-          initial={booking.contents}
-          onSubmit={(contents) =>
+        <ContentsCategoryPicker
+          selected={
+            (typeof draft?.value === "string" ? draft.value : undefined) ??
+            booking.contents?.category
+          }
+          onSelect={(label) =>
             setWidgetDraft({
-              stepId: "CONTENTS",
-              value: contents,
-              summary: summarizeStep("CONTENTS", { contents }),
+              stepId: "CONTENTS_CATEGORY",
+              value: label,
+              summary: label,
             })
           }
         />
       );
+    }
+    case "CONTENTS_VALUE": {
+      const draft = draftForStep(widgetDraft, "CONTENTS_VALUE");
+      const draftValue =
+        typeof draft?.value === "number" ? draft.value : undefined;
+      return (
+        <ContentsValueForm
+          categoryLabel={booking.contents?.category}
+          initialValue={draftValue ?? booking.contents?.value}
+          onValueChange={(num) =>
+            setWidgetDraft({
+              stepId: "CONTENTS_VALUE",
+              value: num,
+              summary: `$${num.toFixed(2)}`,
+            })
+          }
+        />
+      );
+    }
     case "CONFIRM":
       return (
         <ConfirmStep

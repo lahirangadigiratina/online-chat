@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { PARCEL_SIZE_INFO } from "@/lib/flow";
+import { formatRouteSummary } from "@/lib/route-summary";
 import { computeTotals } from "@/lib/pricing";
 import type { Agreements, Booking, StepId } from "@/lib/types";
 interface Props {
@@ -31,11 +32,9 @@ export function ConfirmStep({ booking, onEdit, onBack, onConfirm }: Props) {
 
   const rows: { label: string; step: StepId; text: string }[] = [
     {
-      label: "Drop-off",
-      step: "DROP_OFF_POINT",
-      text: booking.dropOffPoint
-        ? `${booking.dropOffPoint.name}\n${booking.dropOffPoint.address}`
-        : "—",
+      label: "Route",
+      step: "ROUTE",
+      text: formatRouteSummary(booking),
     },
     {
       label: "Parcel size",
@@ -53,11 +52,6 @@ export function ConfirmStep({ booking, onEdit, onBack, onConfirm }: Props) {
           : booking.packaging === false
             ? "No"
             : "—",
-    },
-    {
-      label: "Receiver address",
-      step: "RECEIVER_ADDRESS",
-      text: booking.receiverAddress ?? "—",
     },
     {
       label: "Delivery",
@@ -80,7 +74,7 @@ export function ConfirmStep({ booking, onEdit, onBack, onConfirm }: Props) {
     },
     {
       label: "Contents",
-      step: "CONTENTS",
+      step: "CONTENTS_CATEGORY",
       text: booking.contents
         ? `${booking.contents.category} · $${booking.contents.value}`
         : "—",

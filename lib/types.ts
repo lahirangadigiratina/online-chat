@@ -70,22 +70,28 @@ export interface Booking {
   paidOnline?: boolean;
 }
 
+export interface RouteStepValue {
+  senderSuburb: string;
+  dropOffPoint: DropOffPoint;
+  receiverAddress: string;
+}
+
 export type StepId =
-  | "SUBURB"
-  | "DROP_OFF_POINT"
+  | "ROUTE"
   | "PARCEL_SIZE"
   | "PACKAGING"
-  | "RECEIVER_ADDRESS"
   | "DELIVERY_METHOD"
   | "SENDER_MOBILE"
-  | "SENDER_NAME"
-  | "SENDER_EMAIL"
   | "SENDER_BUSINESS"
+  | "SENDER_FIRST_NAME"
+  | "SENDER_LAST_NAME"
+  | "SENDER_EMAIL"
   | "RECEIVER_NAME"
   | "RECEIVER_EMAIL"
   | "RECEIVER_MOBILE"
   | "RECEIVER_NOTIFY"
-  | "CONTENTS"
+  | "CONTENTS_CATEGORY"
+  | "CONTENTS_VALUE"
   | "CONFIRM"
   | "PAYMENT_METHOD"
   | "PAYMENT"

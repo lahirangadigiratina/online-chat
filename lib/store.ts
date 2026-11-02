@@ -5,13 +5,14 @@ import {
   clearFromStep,
   getNextStep,
   getPreviousStep,
+  skipsPackagingStep,
   PARCEL_SIZE_INFO,
   resolveBotMessage,
   STEP_ORDER,
   summarizeStep,
   validateStep,
 } from "./flow";
-import { computeTotals } from "./pricing";
+import { computeTotals, STANDARD_DELIVERY_PRICE } from "./pricing";
 import { applyParsedFields, parseUserMessage } from "./parse";
 import { saveRecentReceiverAddress } from "./recent-bookings";
 import { isChatInputStep } from "./chat-input-steps";
@@ -25,6 +26,22 @@ function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function fallbackDeliveryQuote(
+  deliveryMethod?: Booking["deliveryMethod"]
+): { price: number; estimatedDelivery: string } {
+  const days = deliveryMethod === "collect" ? 3 : 2;
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return {
+    price: STANDARD_DELIVERY_PRICE,
+    estimatedDelivery: d.toLocaleDateString("en-AU", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    }),
+  };
+}
+
 async function fetchQuote(booking: Booking) {
   const res = await fetch("/api/quote", {
     method: "POST",
@@ -33,7 +50,7 @@ async function fetchQuote(booking: Booking) {
       parcelSize: booking.parcelSize,
       deliveryMethod: booking.deliveryMethod,
       from: booking.senderSuburb,
-      to: booking.receiverAddress,
+      to: booking.receiverAddress?.trim() || booking.senderSuburb,
     }),
   });
   if (!res.ok) throw new Error("Quote failed");
@@ -41,6 +58,11 @@ async function fetchQuote(booking: Booking) {
 }
 
 interface ChatStore {
+  /** True when compose landing was shown (optional path before chat). */
+  landingReady: boolean;
+  enterLanding: () => void;
+  /** Welcome CTA → chat at route / suburb step. */
+  startBookingFromWelcome: () => Promise<void>;
   started: boolean;
   booking: Booking;
   currentStep: StepId;
@@ -50,20 +72,48 @@ interface ChatStore {
   error: string | null;
   widgetDraft: WidgetDraft | null;
   setWidgetDraft: (draft: WidgetDraft | null) => void;
+  /** Sending-from suburb chosen in strip — confirmed with Send (does not finish ROUTE). */
+  confirmRouteSenderSuburb: (suburb: string, summary: string) => void;
   beginChat: (openingText: string) => Promise<void>;
+  /** Compose option chip — chat opens with bot asking (no user message). */
+  beginChatFromComposeOption: (option: {
+    label: string;
+    step: StepId;
+    botMessage?: string;
+  }) => Promise<void>;
   goBack: () => void;
   startOver: () => void;
   jumpToStep: (stepId: StepId) => void;
   submitStep: (stepId: StepId, value: unknown, summary: string) => Promise<void>;
-  pushBotForStep: (stepId: StepId) => Promise<void>;
+  pushBotForStep: (stepId: StepId, opts?: { botText?: string }) => Promise<void>;
   handleFreeText: (text: string) => Promise<void>;
   sendPill: (label: string, value: string) => Promise<void>;
 }
 
 export const useChatStore = create<ChatStore>((set, get) => ({
+  landingReady: false,
+  enterLanding: () => {
+    set({ landingReady: true });
+  },
+
+  startBookingFromWelcome: async () => {
+    set({
+      landingReady: true,
+      started: true,
+      booking: {},
+      currentStep: "PARCEL_SIZE",
+      completedSteps: [],
+      messages: [],
+      isTyping: false,
+      error: null,
+      widgetDraft: null,
+    });
+    await get().pushBotForStep("PARCEL_SIZE");
+  },
+
   started: false,
   booking: {},
-  currentStep: "SUBURB",
+  currentStep: "PARCEL_SIZE",
   completedSteps: [],
   messages: [],
   isTyping: false,
@@ -72,6 +122,30 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   setWidgetDraft: (draft) => set({ widgetDraft: draft, error: null }),
 
+  confirmRouteSenderSuburb: (suburb, summary) => {
+    const trimmed = suburb.trim();
+    if (!trimmed) return;
+    set((s) => ({
+      booking: {
+        ...s.booking,
+        senderSuburb: trimmed,
+        dropOffPoint: undefined,
+      },
+      widgetDraft: null,
+      messages: [
+        ...s.messages,
+        {
+          id: uid(),
+          role: "user",
+          text: summary,
+          stepId: "ROUTE",
+          widgetSummary: summary,
+        },
+      ],
+      error: null,
+    }));
+  },
+
   beginChat: async (openingText: string) => {
     const trimmed = openingText.trim();
     if (!trimmed) return;
@@ -79,7 +153,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     set({
       started: true,
       booking: {},
-      currentStep: "SUBURB",
+      currentStep: "PARCEL_SIZE",
       completedSteps: [],
       messages: [{ id: uid(), role: "user", text: trimmed }],
       isTyping: false,
@@ -87,15 +161,44 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       widgetDraft: null,
     });
 
-    await get().pushBotForStep("SUBURB");
+    await get().pushBotForStep("PARCEL_SIZE");
     await applyParsedOpening(trimmed, get);
   },
 
-  pushBotForStep: async (stepId: StepId) => {
+  beginChatFromComposeOption: async (option) => {
+    const botText = option.botMessage?.trim() || option.label;
+    set({
+      started: true,
+      booking: {},
+      currentStep: option.step,
+      completedSteps: [],
+      messages: [],
+      isTyping: false,
+      error: null,
+      widgetDraft: null,
+    });
+    await get().pushBotForStep(option.step, { botText });
+  },
+
+  pushBotForStep: async (stepId, opts) => {
+    const booking = get().booking;
+    if (stepId === "PACKAGING" && skipsPackagingStep(booking)) {
+      const withPackaging = {
+        ...booking,
+        packaging: booking.packaging ?? false,
+      };
+      if (booking.packaging === undefined) {
+        set({ booking: withPackaging });
+      }
+      const skipTo = getNextStep("PACKAGING", withPackaging);
+      if (skipTo) {
+        await get().pushBotForStep(skipTo, opts);
+        return;
+      }
+    }
     set({ isTyping: true, error: null });
     await new Promise((r) => setTimeout(r, TYPING_MS));
-    const booking = get().booking;
-    const text = resolveBotMessage(stepId, booking);
+    const text = opts?.botText ?? resolveBotMessage(stepId, get().booking);
     const msg: ChatMessage = {
       id: uid(),
       role: "bot",
@@ -149,18 +252,18 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     }
 
     if (stepId === "DELIVERY_METHOD") {
+      let quote = fallbackDeliveryQuote(nextBooking.deliveryMethod);
       try {
-        const quote = await fetchQuote(nextBooking);
-        nextBooking = {
-          ...nextBooking,
-          deliveryFee: quote.price,
-          price: quote.price,
-          estimatedDelivery: quote.estimatedDelivery,
-        };
+        quote = await fetchQuote(nextBooking);
       } catch {
-        set({ error: "Could not get a quote. Try again." });
-        return;
+        /* proceed with default $11.50 quote */
       }
+      nextBooking = {
+        ...nextBooking,
+        deliveryFee: quote.price,
+        price: quote.price,
+        estimatedDelivery: quote.estimatedDelivery,
+      };
     }
 
     if (stepId === "PAYMENT") {
@@ -193,12 +296,26 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         widgetSummary: summary,
       };
       const skipFromLookup: StepId[] = senderLookupFilled
-        ? ["SENDER_NAME", "SENDER_EMAIL", "SENDER_BUSINESS"]
+        ? [
+            "SENDER_BUSINESS",
+            "SENDER_FIRST_NAME",
+            "SENDER_LAST_NAME",
+            "SENDER_EMAIL",
+          ]
         : [];
+      let bookingPatch = nextBooking;
       const completed = [...s.completedSteps];
       if (!completed.includes(stepId)) completed.push(stepId);
       for (const id of skipFromLookup) {
         if (!completed.includes(id)) completed.push(id);
+      }
+      if (
+        stepId === "ROUTE" &&
+        nextBooking.parcelSize === "carry_on" &&
+        !completed.includes("PACKAGING")
+      ) {
+        bookingPatch = { ...nextBooking, packaging: false };
+        completed.push("PACKAGING");
       }
 
       const lookupNote: ChatMessage[] = senderLookupFilled
@@ -212,7 +329,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         : [];
 
       return {
-        booking: nextBooking,
+        booking: bookingPatch,
         messages:
           stepId === "DONE"
             ? messages
@@ -223,14 +340,15 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       };
     });
 
-    let next = getNextStep(stepId);
+    if (
+      nextBooking.parcelSize === "carry_on" &&
+      nextBooking.packaging === undefined
+    ) {
+      nextBooking = { ...nextBooking, packaging: false };
+    }
+    let next = getNextStep(stepId, nextBooking);
     if (stepId === "SENDER_MOBILE" && senderLookupFilled) {
       next = "RECEIVER_NAME";
-    } else if (
-      stepId === "SENDER_EMAIL" &&
-      !nextBooking.sender?.businessStepDone
-    ) {
-      next = "SENDER_BUSINESS";
     }
 
     if (next) await get().pushBotForStep(next);
@@ -238,7 +356,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   goBack: () => {
     const { currentStep } = get();
-    const prev = getPreviousStep(currentStep);
+    const prev = getPreviousStep(currentStep, get().booking);
     if (!prev) return;
     get().jumpToStep(prev);
   },
@@ -265,9 +383,10 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
   startOver: () => {
     set({
+      landingReady: false,
       started: false,
       booking: {},
-      currentStep: "SUBURB",
+      currentStep: "PARCEL_SIZE",
       completedSteps: [],
       messages: [],
       isTyping: false,
@@ -308,6 +427,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       fetchQuote
     );
 
+    set({ booking: merged });
     await autoSubmitParsedSteps(get, merged);
   },
 
@@ -331,7 +451,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       return;
     }
     if (value === SUGGESTION_ACTION.editDetails) {
-      get().jumpToStep("DROP_OFF_POINT");
+      get().jumpToStep("ROUTE");
       return;
     }
     if (value === SUGGESTION_ACTION.applyCoupon) {
@@ -367,7 +487,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       const { getRecentReceiverAddresses } = await import("./recent-bookings");
       const recent = getRecentReceiverAddresses();
       if (recent[0]) {
-        await get().submitStep("RECEIVER_ADDRESS", recent[0], recent[0]);
+        set((s) => ({
+          booking: { ...s.booking, receiverAddress: recent[0] },
+        }));
       }
       return;
     }
@@ -422,6 +544,7 @@ async function applyParsedOpening(
     get().booking,
     fetchQuote
   );
+  useChatStore.setState({ booking: merged });
   await autoSubmitParsedSteps(get, merged);
 }
 
@@ -429,13 +552,7 @@ async function autoSubmitParsedSteps(
   get: () => ChatStore,
   merged: Booking
 ) {
-  const order: StepId[] = [
-    "SUBURB",
-    "PARCEL_SIZE",
-    "PACKAGING",
-    "RECEIVER_ADDRESS",
-    "DELIVERY_METHOD",
-  ];
+  const order: StepId[] = ["PARCEL_SIZE", "PACKAGING", "DELIVERY_METHOD"];
 
   for (const stepId of order) {
     const current = get().booking;
@@ -450,14 +567,10 @@ async function autoSubmitParsedSteps(
 
 function isStepAnswered(stepId: StepId, booking: Booking): boolean {
   switch (stepId) {
-    case "SUBURB":
-      return !!booking.senderSuburb;
     case "PARCEL_SIZE":
       return !!booking.parcelSize;
     case "PACKAGING":
       return booking.packaging !== undefined;
-    case "RECEIVER_ADDRESS":
-      return !!booking.receiverAddress;
     case "DELIVERY_METHOD":
       return !!booking.deliveryMethod;
     default:
@@ -470,8 +583,6 @@ function stepPayload(
   booking: Booking
 ): { value: unknown; summary: string } {
   switch (stepId) {
-    case "SUBURB":
-      return { value: booking.senderSuburb, summary: booking.senderSuburb ?? "" };
     case "PARCEL_SIZE": {
       const info = booking.parcelSize
         ? PARCEL_SIZE_INFO[booking.parcelSize]
@@ -485,11 +596,6 @@ function stepPayload(
       return {
         value: booking.packaging,
         summary: summarizeStep("PACKAGING", booking),
-      };
-    case "RECEIVER_ADDRESS":
-      return {
-        value: booking.receiverAddress,
-        summary: booking.receiverAddress ?? "",
       };
     case "DELIVERY_METHOD": {
       const totals = computeTotals(booking);

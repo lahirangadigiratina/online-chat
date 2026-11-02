@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { STANDARD_DELIVERY_PRICE } from "@/lib/pricing";
 import type { Booking, DeliveryMethod } from "@/lib/types";
 
 interface Props {
@@ -10,62 +11,102 @@ interface Props {
   selectedMethod?: DeliveryMethod;
 }
 
-export function DeliveryOptions({ booking, onSelect, disabled, selectedMethod }: Props) {
+function estimateDelivery(daysFromNow: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + daysFromNow);
+  return d.toLocaleDateString("en-AU", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+}
+
+function defaultQuote(method: DeliveryMethod) {
+  return {
+    price: STANDARD_DELIVERY_PRICE,
+    estimatedDelivery: estimateDelivery(method === "collect" ? 3 : 2),
+  };
+}
+
+export function DeliveryOptions({
+  booking,
+  onSelect,
+  disabled,
+  selectedMethod,
+}: Props) {
   const [quotes, setQuotes] = useState<
     Record<DeliveryMethod, { price: number; estimatedDelivery: string } | null>
   >({ door: null, collect: null });
 
+  const quoteReady = !!booking.parcelSize && !!booking.senderSuburb;
+
   useEffect(() => {
-    if (!booking.parcelSize || !booking.senderSuburb || !booking.receiverAddress) {
-      return;
-    }
+    if (!quoteReady) return;
+    const to = booking.receiverAddress?.trim() || booking.senderSuburb!;
     (["door", "collect"] as DeliveryMethod[]).forEach(async (method) => {
-      const res = await fetch("/api/quote", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          parcelSize: booking.parcelSize,
-          deliveryMethod: method,
-          from: booking.senderSuburb,
-          to: booking.receiverAddress,
-        }),
-      });
-      const data = await res.json();
-      setQuotes((q) => ({ ...q, [method]: data }));
+      try {
+        const res = await fetch("/api/quote", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            parcelSize: booking.parcelSize,
+            deliveryMethod: method,
+            from: booking.senderSuburb,
+            to,
+          }),
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          price: number;
+          estimatedDelivery: string;
+        };
+        setQuotes((q) => ({ ...q, [method]: data }));
+      } catch {
+        /* keep default quote in UI */
+      }
     });
-  }, [booking.parcelSize, booking.senderSuburb, booking.receiverAddress]);
+  }, [
+    quoteReady,
+    booking.parcelSize,
+    booking.senderSuburb,
+    booking.receiverAddress,
+  ]);
 
   const options: {
     id: DeliveryMethod;
     title: string;
     tags: string[];
-  }[] = [
-    {
-      id: "door",
-      title: "Deliver to Door",
-      tags: ["Straight to door", "ATL/Signature on delivery available"],
-    },
-    {
-      id: "collect",
-      title: "Collect from PARCELPOINT",
-      tags: ["Held until collection", "Often lower cost", "Hours that suit them"],
-    },
-  ];
+  }[] = useMemo(
+    () => [
+      {
+        id: "door",
+        title: "Deliver to Door",
+        tags: ["Straight to door", "ATL/Signature on delivery available"],
+      },
+      {
+        id: "collect",
+        title: "Collect from PARCELPOINT",
+        tags: ["Held until collection", "Hours that suit them"],
+      },
+    ],
+    []
+  );
 
   return (
     <div className="space-y-2">
       {options.map((opt) => {
-        const q = quotes[opt.id];
+        const q = quotes[opt.id] ?? defaultQuote(opt.id);
         const selected = selectedMethod === opt.id;
+        const priceLabel = `$${q.price.toFixed(2)}`;
         return (
           <button
             key={opt.id}
             type="button"
-            disabled={disabled || !q}
+            disabled={disabled || !quoteReady}
             onClick={() =>
               onSelect(
                 opt.id,
-                `${opt.title} · $${q!.price.toFixed(2)} · Est. ${q!.estimatedDelivery}`
+                `${opt.title} · ${priceLabel} · Est. ${q.estimatedDelivery}`
               )
             }
             className={`w-full rounded-xl border p-4 text-left transition disabled:opacity-60 ${
@@ -74,9 +115,11 @@ export function DeliveryOptions({ booking, onSelect, disabled, selectedMethod }:
                 : "border-neutral-200 hover:border-brand-orange"
             }`}
           >
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <p className="text-sm font-semibold">{opt.title}</p>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-brand-black">
+                  {opt.title}
+                </p>
                 <div className="mt-2 flex flex-wrap gap-1">
                   {opt.tags.map((t) => (
                     <span
@@ -88,14 +131,14 @@ export function DeliveryOptions({ booking, onSelect, disabled, selectedMethod }:
                   ))}
                 </div>
               </div>
-              {q && (
-                <div className="shrink-0 text-right">
-                  <p className="text-lg font-bold text-brand-orange">
-                    ${q.price.toFixed(2)}
-                  </p>
-                  <p className="text-xs text-neutral-500">Est. {q.estimatedDelivery}</p>
-                </div>
-              )}
+              <div className="shrink-0 text-right">
+                <p className="text-lg font-bold text-brand-orange">
+                  {priceLabel}
+                </p>
+                <p className="text-xs text-neutral-500">
+                  Est. {q.estimatedDelivery}
+                </p>
+              </div>
             </div>
           </button>
         );

@@ -54,7 +54,7 @@ export function SuggestionStrip({
   const numbered = contextual.length > 0;
 
   return (
-    <div key={step} className="relative px-3 pb-2 pt-4">
+    <div key={step} className="relative px-3 pb-1.5 pt-2 sm:pt-2.5">
       {promptHint && (
         <p
           className={`text-xs font-medium text-neutral-500 ${

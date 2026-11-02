@@ -1,5 +1,4 @@
 import type { Booking, StepId } from "./types";
-import { getRecentReceiverAddresses, hasPreviousBookings } from "./recent-bookings";
 
 export type SuggestionIconName =
   | "MapPin"
@@ -22,11 +21,11 @@ export interface Suggestion {
 
 /** Contextual pills hidden — only Start over (+ Back) shown */
 export const WIDGET_SUGGESTION_MINIMAL_STEPS: StepId[] = [
-  "DROP_OFF_POINT",
   "PARCEL_SIZE",
   "PACKAGING",
   "DELIVERY_METHOD",
-  "CONTENTS",
+  "CONTENTS_CATEGORY",
+  "CONTENTS_VALUE",
   "PAYMENT_METHOD",
 ];
 
@@ -71,10 +70,7 @@ const SUBURB_PILLS: Suggestion[] = [
 ];
 
 export const STEP_SUGGESTIONS: Partial<Record<StepId, Suggestion[]>> = {
-  SUBURB: SUBURB_PILLS,
-  SENDER_BUSINESS: [
-    { label: "Skip", value: "Skip", muted: true },
-  ],
+  SENDER_BUSINESS: [{ label: "Skip", value: "Skip", muted: true }],
   RECEIVER_NOTIFY: [
     { label: "Yes", value: "Yes" },
     { label: "No", value: "No" },
@@ -89,34 +85,14 @@ export const STEP_SUGGESTIONS: Partial<Record<StepId, Suggestion[]>> = {
   ],
 };
 
-function receiverAddressPills(booking: Booking): Suggestion[] {
-  const pills: Suggestion[] = [];
-  if (hasPreviousBookings()) {
-    pills.push({
-      label: "Same as last time",
-      icon: "Clock",
-      value: SUGGESTION_ACTION.useLastReceiver,
-    });
-  }
-  const recent = getRecentReceiverAddresses().filter(
-    (a) => a !== booking.receiverAddress
-  );
-  for (const addr of recent.slice(0, 3)) {
-    pills.push({
-      label: addr.length > 28 ? `${addr.slice(0, 26)}…` : addr,
-      icon: "MapPin",
-      value: addr,
-    });
-  }
-  return pills;
-}
-
 export function getSuggestionsForStep(
   step: StepId,
   booking: Booking,
   options: { canBack: boolean }
 ): Suggestion[] {
-  if (step === "SUBURB" && booking.senderSuburb) return trailingActions(options);
+  if (step === "ROUTE" && !booking.senderSuburb) {
+    return [...SUBURB_PILLS, ...trailingActions(options)];
+  }
 
   if (WIDGET_SUGGESTION_MINIMAL_STEPS.includes(step)) {
     return trailingActions(options);
@@ -124,9 +100,7 @@ export function getSuggestionsForStep(
 
   let contextual: Suggestion[] = [];
 
-  if (step === "RECEIVER_ADDRESS" && !booking.receiverAddress) {
-    contextual = receiverAddressPills(booking);
-  } else if (STEP_SUGGESTIONS[step]) {
+  if (STEP_SUGGESTIONS[step]) {
     contextual = [...(STEP_SUGGESTIONS[step] ?? [])];
   }
 

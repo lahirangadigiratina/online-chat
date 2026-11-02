@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { STEP_ORDER } from "@/lib/flow";
 import { isChatInputStep } from "@/lib/chat-input-steps";
 import { useChatStore } from "@/lib/store";
 import {
@@ -10,7 +11,8 @@ import {
   isImmediateSuggestionAction,
   SUGGESTION_ACTION,
 } from "@/lib/suggestions";
-import type { StepId } from "@/lib/types";
+import { formatRouteSummaryFromValue } from "@/lib/route-summary";
+import type { RouteStepValue, StepId, WidgetDraft } from "@/lib/types";
 import { getStepSuggestionHint } from "@/lib/step-hints";
 import {
   DISMISSIBLE_WIDGET_STEPS,
@@ -49,21 +51,21 @@ function getSpeechRecognition(): SpeechRecognitionCtor | null {
 }
 
 const PLACEHOLDER: Record<StepId, string> = {
-  SUBURB: "e.g. Bondi Junction",
-  DROP_OFF_POINT: "Or describe which location you prefer…",
+  ROUTE: 'e.g. "Sending from Bondi Junction to 25 Spring St"',
   PARCEL_SIZE: 'Or type size, e.g. "shoebox"…',
   PACKAGING: 'Type "yes" or "no" for packaging…',
-  RECEIVER_ADDRESS: "Street address",
   DELIVERY_METHOD: 'Or type "door" or "collect"…',
   SENDER_MOBILE: "e.g. 0434 567 890",
-  SENDER_NAME: "First and last name",
-  SENDER_EMAIL: "you@example.com",
   SENDER_BUSINESS: "Business name or Skip",
+  SENDER_FIRST_NAME: "First name",
+  SENDER_LAST_NAME: "Last name",
+  SENDER_EMAIL: "you@example.com",
   RECEIVER_NAME: "Receiver first and last name",
   RECEIVER_EMAIL: "Receiver email",
   RECEIVER_MOBILE: "Receiver mobile",
   RECEIVER_NOTIFY: "Yes or No",
-  CONTENTS: "Describe contents…",
+  CONTENTS_CATEGORY: "e.g. Electronics",
+  CONTENTS_VALUE: "e.g. 120",
   CONFIRM: "Questions about your booking…",
   PAYMENT_METHOD: "Type online or instore…",
   PAYMENT: "Payment help…",
@@ -72,6 +74,38 @@ const PLACEHOLDER: Record<StepId, string> = {
 
 const GEO_FALLBACK_SUBURB = "Bondi Junction NSW 2022";
 
+function routeSuburbDraftValue(
+  step: StepId,
+  draft: WidgetDraft | null
+): string | undefined {
+  if (step !== "ROUTE" || !draft || draft.stepId !== "ROUTE") return undefined;
+  const suburb = (draft.value as { senderSuburb?: string })?.senderSuburb?.trim();
+  return suburb || undefined;
+}
+
+function isCompleteRouteDraft(value: unknown): boolean {
+  const v = value as {
+    senderSuburb?: string;
+    dropOffPoint?: { id?: string };
+  };
+  return (
+    !!String(v?.senderSuburb ?? "").trim() && !!v?.dropOffPoint?.id
+  );
+}
+
+function setRouteSuburbDraft(suburb: string, summary: string) {
+  const booking = useChatStore.getState().booking;
+  useChatStore.getState().setWidgetDraft({
+    stepId: "ROUTE",
+    value: {
+      senderSuburb: suburb,
+      dropOffPoint: undefined,
+      receiverAddress: booking.receiverAddress ?? "",
+    },
+    summary,
+  });
+}
+
 export function InputBar() {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -79,13 +113,14 @@ export function InputBar() {
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [typingPreferred, setTypingPreferred] = useState(false);
   const [widgetPanelCollapsed, setWidgetPanelCollapsed] = useState(false);
-  const [optionsPage, setOptionsPage] = useState(0);
-  const [optionsPageCount, setOptionsPageCount] = useState(1);
   const [listening, setListening] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const store = useChatStore();
   const setWidgetDraft = useChatStore((s) => s.setWidgetDraft);
+  const confirmRouteSenderSuburb = useChatStore(
+    (s) => s.confirmRouteSenderSuburb
+  );
   const goBack = useChatStore((s) => s.goBack);
   const { currentStep, booking, isTyping, error, submitStep, sendPill, widgetDraft } =
     store;
@@ -98,9 +133,7 @@ export function InputBar() {
     recognitionRef.current?.stop();
     setListening(false);
     setWidgetDraft(null);
-    setWidgetPanelCollapsed(false);
-    setOptionsPage(0);
-    setOptionsPageCount(1);
+    setWidgetPanelCollapsed(currentStep === "ROUTE");
   }, [currentStep, setWidgetDraft]);
 
   useEffect(() => {
@@ -146,27 +179,6 @@ export function InputBar() {
     recognition.start();
   };
 
-  useEffect(() => {
-    const autocompleteSteps: StepId[] = ["SUBURB", "RECEIVER_ADDRESS"];
-    if (!autocompleteSteps.includes(currentStep) || text.length < 2) {
-      setSuggestions([]);
-      return;
-    }
-    const endpoint =
-      currentStep === "SUBURB"
-        ? `/api/suburbs?q=${encodeURIComponent(text)}`
-        : `/api/addresses?q=${encodeURIComponent(text)}`;
-    const key = currentStep === "SUBURB" ? "suburbs" : "addresses";
-
-    const t = setTimeout(async () => {
-      const res = await fetch(endpoint);
-      const data = await res.json();
-      setSuggestions(data[key] ?? []);
-      setSuggestionsOpen(true);
-    }, 200);
-    return () => clearTimeout(t);
-  }, [text, currentStep]);
-
   const submitComposeValue = async (value: string) => {
     const trimmed = value.trim();
     const draft =
@@ -175,7 +187,26 @@ export function InputBar() {
     setBusy(true);
     try {
       if (draft && (!trimmed || !isChatInputStep(currentStep))) {
-        await submitStep(draft.stepId, draft.value, draft.summary);
+        if (draft.stepId === "ROUTE" && isCompleteRouteDraft(draft.value)) {
+          const routeValue = draft.value as RouteStepValue;
+          await submitStep(
+            "ROUTE",
+            routeValue,
+            formatRouteSummaryFromValue(routeValue)
+          );
+        } else if (
+          draft.stepId === "ROUTE" &&
+          routeSuburbDraftValue("ROUTE", draft) &&
+          !isCompleteRouteDraft(draft.value)
+        ) {
+          confirmRouteSenderSuburb(
+            routeSuburbDraftValue("ROUTE", draft)!,
+            draft.summary
+          );
+          setWidgetPanelCollapsed(false);
+        } else {
+          await submitStep(draft.stepId, draft.value, draft.summary);
+        }
       } else if (isChatInputStep(currentStep)) {
         await submitStep(currentStep, trimmed, trimmed);
       } else {
@@ -219,7 +250,7 @@ export function InputBar() {
     if (pill.value === SUGGESTION_ACTION.geolocation) {
       setBusy(true);
       try {
-        await resolveGeolocationPill(setWidgetDraft, currentStep);
+        await resolveGeolocationPill(currentStep);
       } finally {
         setBusy(false);
       }
@@ -228,12 +259,14 @@ export function InputBar() {
     if (pill.value === SUGGESTION_ACTION.useLastReceiver) {
       const recent = getRecentReceiverAddresses();
       if (recent[0]) {
-        setWidgetDraft({
-          stepId: currentStep,
-          value: recent[0],
-          summary: recent[0],
-        });
+        useChatStore.setState((s) => ({
+          booking: { ...s.booking, receiverAddress: recent[0] },
+        }));
       }
+      return;
+    }
+    if (currentStep === "ROUTE" && !booking.senderSuburb) {
+      setRouteSuburbDraft(pill.value, pill.label);
       return;
     }
     setWidgetDraft({
@@ -243,103 +276,42 @@ export function InputBar() {
     });
   };
 
-  const canBack = currentStep !== "SUBURB";
+  const canBack = currentStep !== STEP_ORDER[0];
   const stepHasWidgetPanel =
     !isTyping && STEPS_WITH_WIDGET_PANEL.includes(currentStep);
   const widgetPanelDismissible =
     stepHasWidgetPanel && DISMISSIBLE_WIDGET_STEPS.includes(currentStep);
   const showWidgetPanelExpanded =
     stepHasWidgetPanel && !widgetPanelCollapsed;
-  const showWidgetPanelCollapsedBar =
-    stepHasWidgetPanel && widgetPanelCollapsed && widgetPanelDismissible;
   const inputEmpty = text.trim().length === 0;
   const showPillStrip = inputEmpty && !isTyping && !typingPreferred;
   const showComposeInput = !isTyping && currentStep !== "DONE";
   const hasWidgetDraft = widgetDraft?.stepId === currentStep;
   const canSendCompose = !!text.trim() || hasWidgetDraft;
   const pillSelectedValue =
-    hasWidgetDraft && typeof widgetDraft?.value === "string"
+    routeSuburbDraftValue(currentStep, widgetDraft) ??
+    (hasWidgetDraft && typeof widgetDraft?.value === "string"
       ? widgetDraft.value
-      : undefined;
+      : undefined);
   const stepPromptHint = getStepSuggestionHint(currentStep, booking);
   const hintOnWidgetPanel = showWidgetPanelExpanded;
   const hintOnSuggestionStrip = showPillStrip && !hintOnWidgetPanel;
 
-  const paginatedOptions =
-    currentStep === "DROP_OFF_POINT" && optionsPageCount > 1;
-  const pageLabel = paginatedOptions
-    ? `${optionsPage + 1} of ${optionsPageCount}`
-    : undefined;
-
   const handleNavPrevious = () => {
-    if (paginatedOptions && optionsPage > 0) {
-      setOptionsPage((p) => p - 1);
-      return;
-    }
     if (canBack) goBack();
   };
 
-  const handleNavNext = () => {
-    if (paginatedOptions && optionsPage < optionsPageCount - 1) {
-      setOptionsPage((p) => p + 1);
-    }
-  };
-
-  const navPrevDisabled =
-    busy ||
-    isTyping ||
-    (paginatedOptions ? optionsPage === 0 && !canBack : !canBack);
-  const navNextDisabled =
-    busy ||
-    isTyping ||
-    (paginatedOptions
-      ? optionsPage >= optionsPageCount - 1
-      : true);
+  const navPrevDisabled = busy || isTyping || !canBack;
+  const navNextDisabled = true;
 
   return (
     <div
       className={`flex shrink-0 flex-col border-t border-neutral-200 bg-white shadow-[0_-4px_24px_rgba(0,0,0,0.06)] ${
         showWidgetPanelExpanded
-          ? "max-h-[min(52vh,420px)] min-h-0 overflow-hidden"
+          ? "max-h-[min(58vh,480px)] min-h-0 overflow-hidden"
           : ""
       }`}
     >
-      {showWidgetPanelExpanded && (
-        <div className="flex min-h-0 flex-1 flex-col px-3 pb-2 pt-2 sm:pb-3 sm:pt-3">
-          <WidgetPanelNav
-            hint={stepPromptHint}
-            pageLabel={pageLabel}
-            onPrevious={handleNavPrevious}
-            onNext={handleNavNext}
-            previousDisabled={navPrevDisabled}
-            nextDisabled={navNextDisabled}
-            showClose={widgetPanelDismissible}
-            onClose={() => setWidgetPanelCollapsed(true)}
-          />
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [-ms-overflow-style:none] [scrollbar-width:thin]">
-            <StepWidget
-              stepId={currentStep}
-              booking={booking}
-              optionsPage={optionsPage}
-              onDropOffPageCount={setOptionsPageCount}
-            />
-          </div>
-        </div>
-      )}
-
-      {showWidgetPanelCollapsedBar && (
-        <div className="flex items-center justify-between gap-2 border-b border-neutral-100 px-3 py-2">
-          <button
-            type="button"
-            onClick={() => setWidgetPanelCollapsed(false)}
-            className="text-sm font-medium text-brand-orange hover:underline"
-          >
-            Show options
-          </button>
-          <span className="text-xs text-neutral-400">Type your answer below</span>
-        </div>
-      )}
-
       {isTyping && (
         <div className="px-3 py-3 text-xs text-neutral-400">Assistant is typing…</div>
       )}
@@ -361,10 +333,27 @@ export function InputBar() {
         />
       )}
 
+      {showWidgetPanelExpanded && (
+        <div className="flex min-h-0 max-h-[min(40vh,360px)] flex-col px-3 pb-2 pt-1 sm:pb-3 sm:pt-2">
+          <WidgetPanelNav
+            hint={stepPromptHint}
+            onPrevious={handleNavPrevious}
+            onNext={handleNavPrevious}
+            previousDisabled={navPrevDisabled}
+            nextDisabled={navNextDisabled}
+            showClose={widgetPanelDismissible}
+            onClose={() => setWidgetPanelCollapsed(true)}
+          />
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [-ms-overflow-style:none] [scrollbar-width:thin]">
+            <StepWidget stepId={currentStep} booking={booking} />
+          </div>
+        </div>
+      )}
+
       {showComposeInput && (
         <div
           className={`px-3 pb-[max(0.375rem,env(safe-area-inset-bottom))] sm:pb-[max(0.5rem,env(safe-area-inset-bottom))] ${
-            showPillStrip ? "pt-2" : "border-t border-neutral-100 pt-3"
+            showPillStrip ? "pt-1.5" : "border-t border-neutral-100 pt-3"
           }`}
         >
           <div className="relative rounded-2xl border border-neutral-200/90 bg-white p-2 shadow-[0_4px_20px_rgba(0,0,0,0.05)]">
@@ -438,19 +427,24 @@ export function InputBar() {
   );
 }
 
-async function resolveGeolocationPill(
-  setWidgetDraft: (draft: {
-    stepId: StepId;
-    value: unknown;
-    summary: string;
-  } | null) => void,
-  stepId: StepId
-) {
-  const setSuburbDraft = (suburb: string) =>
-    setWidgetDraft({ stepId, value: suburb, summary: suburb });
+async function resolveGeolocationPill(stepId: StepId) {
+  const applySuburb = (suburb: string) => {
+    const summary = suburb.includes(" NSW")
+      ? suburb.split(" NSW")[0]!
+      : suburb;
+    if (stepId === "ROUTE") {
+      setRouteSuburbDraft(suburb, summary);
+      return;
+    }
+    useChatStore.getState().setWidgetDraft({
+      stepId,
+      value: suburb,
+      summary: suburb,
+    });
+  };
 
   if (typeof navigator === "undefined" || !navigator.geolocation) {
-    setSuburbDraft(GEO_FALLBACK_SUBURB);
+    applySuburb(GEO_FALLBACK_SUBURB);
     return;
   }
 
@@ -463,9 +457,9 @@ async function resolveGeolocationPill(
     });
     const { latitude, longitude } = position.coords;
     const suburb = await reverseGeocodeSuburb(latitude, longitude);
-    setSuburbDraft(suburb);
+    applySuburb(suburb);
   } catch {
-    setSuburbDraft(GEO_FALLBACK_SUBURB);
+    applySuburb(GEO_FALLBACK_SUBURB);
   }
 }
 

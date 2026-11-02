@@ -5,10 +5,11 @@ import { useEffect, useState } from "react";
 interface Props {
   onSelect: (address: string) => void;
   disabled?: boolean;
+  value?: string;
 }
 
-export function AddressInput({ onSelect, disabled }: Props) {
-  const [query, setQuery] = useState("");
+export function AddressInput({ onSelect, disabled, value }: Props) {
+  const [query, setQuery] = useState(value ?? "");
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
 
@@ -25,6 +26,12 @@ export function AddressInput({ onSelect, disabled }: Props) {
     }, 200);
     return () => clearTimeout(t);
   }, [query]);
+
+  useEffect(() => {
+    if (value !== undefined && value !== query) {
+      setQuery(value);
+    }
+  }, [value, query]);
 
   return (
     <div className="relative w-full">

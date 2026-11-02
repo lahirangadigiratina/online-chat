@@ -3,6 +3,8 @@ import type { Booking } from "./types";
 /** TODO: confirm with product — parcel protection rate */
 export const PROTECTION_RATE = 0.025;
 export const PACKAGING_FEE = 2;
+/** Shown for door and collect until a live quote is loaded. */
+export const STANDARD_DELIVERY_PRICE = 11.5;
 export const SIGNATURE_FEE = 3.5;
 export const GST_RATE = 0.1;
 

@@ -5,6 +5,8 @@
 :root {
   --brand-orange: #e8651a;
   --brand-black: #0a0a0a;
+  --color-ppg-orange: #e85c00;
+  --color-ppg-orange-hover: #cf5200;
 }
 
 html,
@@ -14,6 +16,92 @@ body {
 
 body {
   @apply bg-neutral-50 text-brand-black antialiased;
+}
+
+@keyframes welcomeHeroFloat {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-5deg);
+  }
+  50% {
+    transform: translateY(-16px) rotate(5deg);
+  }
+}
+
+@keyframes welcomeHelloBubble {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  15%,
+  45% {
+    transform: translateY(-3px) scale(1.04);
+  }
+  30% {
+    transform: translateY(-1px) scale(1.02);
+  }
+}
+
+.welcome-hero-animate {
+  transform-origin: center center;
+  will-change: transform;
+  animation: welcomeHeroFloat 4.5s ease-in-out infinite;
+}
+
+.welcome-hello-animate {
+  animation: welcomeHelloBubble 2.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcome-hero-animate,
+  .welcome-hello-animate {
+    animation: none;
+  }
+}
+
+.brand-lockup-crop {
+  mix-blend-mode: screen;
+}
+
+.compose-brand-mark img {
+  background: transparent;
+}
+
+.welcome-get-started {
+  display: flex;
+  width: 100%;
+  min-height: 52px;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 9999px;
+  background-color: #e85c00;
+  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.25;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(232, 92, 0, 0.35);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.welcome-get-started:hover {
+  background-color: #cf5200;
+}
+
+.welcome-get-started:active {
+  transform: scale(0.99);
+}
+
+.welcome-get-started:focus-visible {
+  outline: 2px solid #e85c00;
+  outline-offset: 2px;
+}
+
+/** Flat pastel orange (compose landing + chat thread). */
+.app-pastel-orange-bg {
+  background-color: #ffedd5;
+  background-image: none;
 }
 
 @keyframes pillIn {

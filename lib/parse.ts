@@ -1,5 +1,5 @@
 import type { Booking, FlowState, ParseResult, ParcelSize } from "./types";
-import { firstIncompleteStep, validateStep } from "./flow";
+import { firstIncompleteStep } from "./flow";
 import { isValidEmail, normalizeAuMobile } from "./validation";
 
 const SIZE_KEYWORDS: Record<string, ParcelSize> = {
@@ -12,9 +12,49 @@ const SIZE_KEYWORDS: Record<string, ParcelSize> = {
   carry_on: "carry_on",
 };
 
+const SUBURB_ALIASES: { pattern: RegExp; suburb: string }[] = [
+  { pattern: /bondi/i, suburb: "Bondi Junction NSW 2022" },
+  { pattern: /surry/i, suburb: "Surry Hills NSW 2010" },
+  { pattern: /newtown/i, suburb: "Newtown NSW 2042" },
+  { pattern: /parramatta/i, suburb: "Parramatta NSW 2150" },
+  { pattern: /manly/i, suburb: "Manly NSW 2095" },
+];
+
+function resolveSuburb(raw: string): string {
+  const trimmed = raw.trim();
+  for (const { pattern, suburb } of SUBURB_ALIASES) {
+    if (pattern.test(trimmed)) return suburb;
+  }
+  if (/NSW\s+\d{4}/i.test(trimmed)) return trimmed;
+  return trimmed;
+}
+
+function normalizeReceiverAddress(raw: string, senderSuburb?: string): string {
+  const trimmed = raw.trim();
+  if (/NSW\s+\d{4}/i.test(trimmed)) return trimmed;
+  if (/^\d+\s+\w/.test(trimmed) && senderSuburb) {
+    const area = senderSuburb.replace(/\s+NSW\s+\d{4}$/i, "").trim();
+    return `${trimmed}, ${area} NSW 2022`;
+  }
+  return trimmed;
+}
+
 export function parseUserMessage(text: string, _state: FlowState): ParseResult {
   const lower = text.toLowerCase();
   const fields: Partial<Booking> = {};
+
+  const fromToMatch = text.match(
+    /\b(?:sending\s+)?from\s+(.+?)\s+to\s+(.+?)(?:[.!?]|$)/i
+  );
+  if (fromToMatch) {
+    const fromRaw = fromToMatch[1].trim();
+    const toRaw = fromToMatch[2].trim();
+    fields.senderSuburb = resolveSuburb(fromRaw);
+    fields.receiverAddress = normalizeReceiverAddress(
+      toRaw,
+      fields.senderSuburb
+    );
+  }
 
   for (const [kw, size] of Object.entries(SIZE_KEYWORDS)) {
     if (lower.includes(kw)) {
@@ -23,15 +63,20 @@ export function parseUserMessage(text: string, _state: FlowState): ParseResult {
     }
   }
 
-  if (lower.includes("bondi")) {
+  if (!fields.senderSuburb && lower.includes("bondi")) {
     fields.senderSuburb = "Bondi Junction NSW 2022";
   }
 
-  const springMatch = text.match(/\d+\s+[\w\s]+(?:st|street|rd|road)/i);
-  if (springMatch) {
-    fields.receiverAddress = springMatch[0];
-  } else if (lower.includes("spring st")) {
-    fields.receiverAddress = "25 Spring St, Sydney NSW";
+  if (!fields.receiverAddress) {
+    const springMatch = text.match(/\d+\s+[\w\s]+(?:st|street|rd|road)/i);
+    if (springMatch) {
+      fields.receiverAddress = normalizeReceiverAddress(
+        springMatch[0],
+        fields.senderSuburb
+      );
+    } else if (lower.includes("spring st")) {
+      fields.receiverAddress = "25 Spring St, Bondi Junction NSW 2022";
+    }
   }
 
   if (lower.includes("door")) fields.deliveryMethod = "door";
@@ -78,18 +123,28 @@ export async function applyParsedFields(
 ): Promise<{ booking: Booking; lastStep: ReturnType<typeof firstIncompleteStep> }> {
   let next = { ...booking };
 
-  const tryApply = (stepId: Parameters<typeof validateStep>[0], value: unknown) => {
-    const result = validateStep(stepId, value, next);
-    if (result.ok) next = { ...next, ...result.patch };
-  };
+  if (fields.senderSuburb) {
+    const suburb = fields.senderSuburb;
+    if (next.senderSuburb !== suburb) {
+      next = { ...next, senderSuburb: suburb, dropOffPoint: undefined };
+    } else {
+      next = { ...next, senderSuburb: suburb };
+    }
+  }
 
-  if (fields.senderSuburb) tryApply("SUBURB", fields.senderSuburb);
-  if (fields.dropOffPoint) tryApply("DROP_OFF_POINT", fields.dropOffPoint);
-  if (fields.parcelSize) tryApply("PARCEL_SIZE", fields.parcelSize);
-  if (fields.packaging !== undefined) tryApply("PACKAGING", fields.packaging);
-  if (fields.receiverAddress) tryApply("RECEIVER_ADDRESS", fields.receiverAddress);
+  if (fields.receiverAddress) {
+    next = { ...next, receiverAddress: fields.receiverAddress };
+  }
+
+  if (fields.parcelSize) {
+    next = { ...next, parcelSize: fields.parcelSize };
+  }
+  if (fields.packaging !== undefined) {
+    next = { ...next, packaging: fields.packaging };
+  }
+
   if (fields.deliveryMethod) {
-    tryApply("DELIVERY_METHOD", fields.deliveryMethod);
+    next = { ...next, deliveryMethod: fields.deliveryMethod };
     if (
       next.deliveryMethod &&
       next.parcelSize &&
@@ -105,7 +160,6 @@ export async function applyParsedFields(
       };
     }
   }
-
 
   return { booking: next, lastStep: firstIncompleteStep(next) };
 }

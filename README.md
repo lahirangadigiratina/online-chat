@@ -25,7 +25,7 @@ Repo includes `vercel.json` with `"framework": "nextjs"` so Vercel uses the corr
 
 ## Step order
 
-`SUBURB` → `DROP_OFF_POINT` → `PARCEL_SIZE` → `PACKAGING` → `RECEIVER_ADDRESS` → `DELIVERY_METHOD` → `SENDER_DETAILS` → `RECEIVER_DETAILS` → `CONTENTS` → `CONFIRM` → `PAYMENT_METHOD` → `PAYMENT` → `DONE`
+`ROUTE` (suburb + drop-off + delivery address) → `PARCEL_SIZE` → `PACKAGING` → `DELIVERY_METHOD` → sender/receiver chat steps → `CONTENTS` → `CONFIRM` → `PAYMENT_METHOD` → `PAYMENT` → `DONE`
 
 ## Mock APIs
 
