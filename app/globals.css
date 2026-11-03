@@ -15,7 +15,7 @@ body {
 }
 
 body {
-  @apply bg-neutral-50 text-brand-black antialiased;
+  @apply bg-[#F7F8FA] text-brand-black antialiased;
 }
 
 @keyframes welcomeHeroFloat {

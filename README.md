@@ -1,59 +1,10 @@
-# ParcelPoint Go — Chat Booking Assistant
+# ParcelPoint Go
 
-Mobile-first Next.js chat UI for parcel booking. Flow is driven by a **deterministic state machine** in `lib/flow.ts`; amounts come from **`lib/pricing.ts`** (`computeTotals`).
-
-## Run locally
+Minimal Next.js starter. Run:
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
-
-Landing screen → chat flow through **DONE** (confirm, payment, barcode).
-
-## Deploy on Vercel
-
-This is a **Next.js** app. In the Vercel project **Settings → General → Build & Development Settings**:
-
-- **Framework Preset:** Next.js  
-- **Build Command:** `npm run build` (default)  
-- **Output Directory:** leave **empty** (do not set `public` — that is only for static assets, not the build output)
-
-Repo includes `vercel.json` with `"framework": "nextjs"` so Vercel uses the correct pipeline.
-
-## Step order
-
-`ROUTE` (suburb + drop-off + delivery address) → `PARCEL_SIZE` → `PACKAGING` → `DELIVERY_METHOD` → sender/receiver chat steps → `CONTENTS` → `CONFIRM` → `PAYMENT_METHOD` → `PAYMENT` → `DONE`
-
-## Mock APIs
-
-| Route | Purpose |
-|-------|---------|
-| `GET /api/suburbs?q=` | Suburb search |
-| `GET /api/dropoff-points?suburb=` | Drop-off list |
-| `GET /api/addresses?q=` | Address autocomplete |
-| `POST /api/quote` | Delivery fee + ETA |
-| `GET /api/customer-lookup?mobile=` | `0434 567 890` → Jane Smith mock |
-| `POST /api/coupon` | `SAVE5` → $5 off |
-| `POST /api/bookings` | Returns `bookingRef` |
-| `POST /api/payments` | Mock success (replace with Airwallex) |
-
-## Pricing
-
-All totals use `computeTotals(booking)` — delivery from quote, packaging $2, signature $3.50, protection 2.5% of declared value (see `PROTECTION_RATE` TODO), GST 10% on subtotal.
-
-## Payment integration
-
-`PaymentForm.tsx` uses a **mock** card UI marked for **Airwallex** hosted/embedded replacement. Do not store PAN/CVC.
-
-## Adding steps
-
-1. Extend `Booking` in `lib/types.ts`.
-2. Append `StepId` + `STEPS` / `validateStep` / `isStepSatisfied` in `lib/flow.ts`.
-3. Widget in `components/widgets/` + case in `StepWidget.tsx`.
-
-## Phase 2 — LLM
-
-`POST /api/parse` + Anthropic JSON-only partial fields; state machine validates every step.
