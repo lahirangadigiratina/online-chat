@@ -11,9 +11,15 @@ import { PaymentMethodSheet } from "./PaymentMethodSheet";
 
 const PGO_ORANGE = "#C44717";
 
-function BotBubble({ children }: { children: ReactNode }) {
+function BotBubble({
+  children,
+  onReady,
+}: {
+  children: ReactNode;
+  onReady?: () => void;
+}) {
   return (
-    <BotReply>
+    <BotReply onReady={onReady}>
       <div className="flex justify-start">
         <div className="max-w-[92%] rounded-[1.25rem] rounded-bl-md bg-white px-4 py-2.5 text-[15px] leading-snug text-[#0B1B32] shadow-sm">
           {children}
@@ -59,6 +65,7 @@ function CircleMark({ selected }: { selected: boolean }) {
 
 interface Props {
   onBack: () => void;
+  onCancel?: () => void;
   onBooked?: () => void;
   onBookedInStore?: () => void;
   priorThread?: ChatMessage[];
@@ -66,6 +73,7 @@ interface Props {
 
 export function ChatPayConfirmScreen({
   onBack,
+  onCancel,
   onBooked,
   onBookedInStore,
   priorThread = [],
@@ -76,10 +84,10 @@ export function ChatPayConfirmScreen({
     () => buildBookingSummaryFromThread(priorThread).total,
     [priorThread],
   );
-  const [termsAccepted, setTermsAccepted] = useState(false);
   const [termsStep, setTermsStep] = useState<"pending" | "agreed" | "declined">(
     "pending",
   );
+  const [declineReady, setDeclineReady] = useState(false);
   const [noDangerousAccepted, setNoDangerousAccepted] = useState(false);
   const [dangerousStep, setDangerousStep] = useState<
     "pending" | "confirmed" | "contains"
@@ -127,25 +135,14 @@ export function ChatPayConfirmScreen({
             our terms?
           </BotBubble>
 
-          {termsStep === "pending" ? (
-            <button
-              type="button"
-              onClick={() => {
-                setTermsAccepted((value) => !value);
-              }}
-              className={`flex w-full items-start gap-3 rounded-2xl border bg-white p-4 text-left shadow-sm transition ${
-                termsAccepted
-                  ? "border-2 border-[#C44717]"
-                  : "border border-neutral-200"
-              }`}
-            >
-              <CircleMark selected={termsAccepted} />
+          {termsStep === "pending" || termsStep === "declined" ? (
+            <div className="flex w-full items-start gap-3 rounded-2xl border border-neutral-200 bg-white p-4 text-left shadow-sm">
+              <CircleMark selected={false} />
               <span className="min-w-0 text-[15px] leading-snug text-[#0B1B32]">
                 I agree to the{" "}
                 <a
                   href="#terms"
                   className="font-semibold text-[#C44717] underline underline-offset-2"
-                  onClick={(e) => e.stopPropagation()}
                 >
                   Terms &amp; Conditions
                 </a>{" "}
@@ -153,13 +150,12 @@ export function ChatPayConfirmScreen({
                 <a
                   href="#privacy"
                   className="font-semibold text-[#C44717] underline underline-offset-2"
-                  onClick={(e) => e.stopPropagation()}
                 >
                   Privacy Policy
                 </a>
                 .
               </span>
-            </button>
+            </div>
           ) : (
             <div className="flex w-full items-start gap-3 rounded-2xl border-2 border-[#C44717] bg-white p-4 shadow-sm">
               <CircleMark selected />
@@ -181,12 +177,10 @@ export function ChatPayConfirmScreen({
             <div className="grid grid-cols-2 gap-2.5">
               <button
                 type="button"
-                disabled={!termsAccepted}
                 onClick={() => {
                   setTermsStep("agreed");
-                  setTermsAccepted(true);
                 }}
-                className="rounded-full py-3 text-[15px] font-bold text-white transition enabled:active:scale-[0.99] disabled:opacity-45"
+                className="rounded-full py-3 text-[15px] font-bold text-white transition active:scale-[0.99]"
                 style={{ backgroundColor: PGO_ORANGE }}
               >
                 I agree
@@ -195,7 +189,6 @@ export function ChatPayConfirmScreen({
                 type="button"
                 onClick={() => {
                   setTermsStep("declined");
-                  setTermsAccepted(false);
                 }}
                 className="rounded-full border border-neutral-300 bg-white py-3 text-[15px] font-bold text-[#0B1B32] transition active:scale-[0.99]"
               >
@@ -205,10 +198,46 @@ export function ChatPayConfirmScreen({
           ) : null}
 
           {termsStep === "declined" ? (
-            <BotBubble>
-              No problem — tap back if you want to review your booking, or tell
-              me what&apos;s not right.
-            </BotBubble>
+            <>
+              <UserBubble>I don&apos;t agree</UserBubble>
+              <BotBubble onReady={() => setDeclineReady(true)}>
+                No problem — but I can&apos;t complete the booking without your
+                agreement to the{" "}
+                <a
+                  href="#terms"
+                  className="font-semibold text-[#C44717] underline underline-offset-2"
+                >
+                  Terms &amp; Conditions
+                </a>{" "}
+                and{" "}
+                <a
+                  href="#privacy"
+                  className="font-semibold text-[#C44717] underline underline-offset-2"
+                >
+                  Privacy Policy
+                </a>
+                .
+              </BotBubble>
+              {declineReady ? (
+                <div className="grid w-full grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setTermsStep("agreed")}
+                    className="w-full rounded-full py-3 text-[15px] font-bold text-white transition active:scale-[0.99]"
+                    style={{ backgroundColor: PGO_ORANGE }}
+                  >
+                    I agree now
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onCancel?.()}
+                    className="w-full rounded-full border border-neutral-300 bg-white py-3 text-[15px] font-bold text-[#0B1B32] transition active:scale-[0.99]"
+                  >
+                    Cancel booking
+                  </button>
+                </div>
+              ) : null}
+            </>
           ) : null}
 
           {showDangerousStep ? (
@@ -245,12 +274,11 @@ export function ChatPayConfirmScreen({
                   <div className="grid grid-cols-2 gap-2.5">
                     <button
                       type="button"
-                      disabled={!noDangerousAccepted}
                       onClick={() => {
-                        setDangerousStep("confirmed");
                         setNoDangerousAccepted(true);
+                        setDangerousStep("confirmed");
                       }}
-                      className="rounded-full py-3 text-[15px] font-bold text-white transition enabled:active:scale-[0.99] disabled:opacity-45"
+                      className="rounded-full py-3 text-[15px] font-bold text-white transition active:scale-[0.99]"
                       style={{ backgroundColor: PGO_ORANGE }}
                     >
                       I confirm

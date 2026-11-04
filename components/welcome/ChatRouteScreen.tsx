@@ -143,6 +143,7 @@ export function ChatRouteScreen({
       <ChatPayConfirmScreen
         priorThread={thread}
         onBack={() => setPhase("review")}
+        onCancel={() => onFinished?.()}
         onBooked={() => setPhase("booked")}
         onBookedInStore={() => setPhase("bookedInStore")}
       />

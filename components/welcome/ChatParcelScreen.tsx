@@ -526,7 +526,7 @@ export function ChatParcelScreen({
                   >
                     {size.id === sizeSuggestion ? (
                       <span className="absolute right-2 top-2 rounded-full bg-[#C44717] px-2.5 py-0.5 text-[10px] font-semibold text-white">
-                        PGo&apos;s pick
+                        PPGo&apos;s pick
                       </span>
                     ) : null}
                     <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-neutral-100 bg-[#F3F4F6]">
