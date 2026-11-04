@@ -199,10 +199,11 @@ export function ChatTranscript({
       message.role === "bot" && !revealedRef.current!.has(message.id),
   );
   const firstHeldId = firstHeld?.id ?? null;
+  const messageStamp = messages.map((message) => message.id).join("\n");
 
   useEffect(() => {
     onBusyChangeRef.current?.(firstHeldId !== null);
-  }, [firstHeldId, tick]);
+  }, [firstHeldId, tick, messageStamp]);
 
   useEffect(() => {
     if (!firstHeldId) return;

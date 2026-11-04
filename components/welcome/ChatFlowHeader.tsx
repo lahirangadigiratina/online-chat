@@ -96,13 +96,6 @@ export function ChatFlowHeader({
             {assistantTagline}
           </p>
         </div>
-        <button
-          type="button"
-          aria-label="Voice"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#ECEEF2] text-[#0B1B32]"
-        >
-          <MicIcon />
-        </button>
       </div>
       <nav
         className="flex gap-1 border-t border-neutral-100 pb-3 pt-2.5"
