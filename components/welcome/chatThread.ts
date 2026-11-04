@@ -150,11 +150,11 @@ export function resolveParcelPackagingChoice(
 }
 
 function parcelOptionalPhotoBot(selectedSizeLabel: string) {
-  return `${selectedSizeLabel} it is. Want to add a photo of the parcel? It's optional, but it helps the ParcelPoint match it at drop-off and supports any Parcel Protection claim.`;
+  return `${selectedSizeLabel} it is. Want to add a photo of the parcel? It's optional, but it helps the PARCELPOINT match it at drop-off and supports any Parcel Protection claim.`;
 }
 
 export function parcelPhotoSkipBot(parcelPointBoxLabel: string) {
-  return `No problem — we'll go without a photo. Is it already packed, or would you like packaging? We'll have a ${parcelPointBoxLabel} ready at the ParcelPoint for $2.00.`;
+  return `No problem — we'll go without a photo. Is it already packed, or would you like packaging? We'll have a ${parcelPointBoxLabel} ready at the PARCELPOINT for $2.00.`;
 }
 
 export function buildParcelProgressMessages(
@@ -230,7 +230,7 @@ export function buildParcelProgressMessages(
     items.push({
       id: "parcel-packaging-bot-photo",
       role: "bot",
-      content: `Thanks, that's a clear photo. Is it already packed, or would you like packaging? We'll have a ${options.parcelPointBoxLabel} ready at the ParcelPoint for $2.00.`,
+      content: `Thanks, that's a clear photo. Is it already packed, or would you like packaging? We'll have a ${options.parcelPointBoxLabel} ready at the PARCELPOINT for $2.00.`,
     });
   } else {
     items.push({
@@ -358,6 +358,18 @@ export function parseSenderDetailsFromMessage(
   };
 }
 
+/** Number already on file. Any other number is entered by hand. */
+export const KNOWN_SENDER_MOBILE = DEFAULT_SENDER_DETAILS.mobile;
+
+export function lookupSenderByMobile(
+  input: string,
+): ParsedReceiverDetails | null {
+  const digits = input.replace(/\D/g, "");
+  const known = KNOWN_SENDER_MOBILE.replace(/\D/g, "");
+  if (!digits || digits !== known) return null;
+  return { ...DEFAULT_SENDER_DETAILS };
+}
+
 export function payNotifyLeadUserLine(messages: ChatMessage[]): string | null {
   const notify = messages.find((message) => message.id === "price-notify-user");
   if (typeof notify?.content !== "string") return null;
@@ -442,7 +454,7 @@ export function buildRouteThreadThroughParcelPoints(): ChatMessage[] {
       id: "route-parcelpoints",
       role: "bot",
       content:
-        "Lovely — shoes off to your mum. These ParcelPoints are closest to Parramatta. Which one works?",
+        "Lovely — shoes off to your mum. These PARCELPOINTS are closest to Parramatta. Which one works?",
     },
   ];
 }
@@ -544,7 +556,7 @@ export function resolvePriceDeliveryChoice(
 }
 
 export const PRICE_DELIVERY_BOT =
-  "A Shoebox is a flat rate anywhere in Australia. To her door, or to a ParcelPoint near her to collect?";
+  "A Shoebox is a flat rate anywhere in Australia. To her door, or to a PARCELPOINT near her to collect?";
 
 export function formatItemWorthDisplay(raw: string): string {
   const trimmed = raw.trim();
@@ -639,7 +651,7 @@ export function priceWorthPrompt(
   choice: PriceDeliveryChoice,
   itemLabel?: string,
 ): string {
-  const lead = choice === "door" ? "Door it is." : "ParcelPoint it is.";
+  const lead = choice === "door" ? "Door it is." : "PARCELPOINT it is.";
   const { subject, verb } = worthQuestionPhrase(itemLabel ?? "the item");
   return `${lead} What ${verb} ${subject} worth? I'll use it to work out Parcel Protection.`;
 }
@@ -995,7 +1007,7 @@ const DEFAULT_BOOKING_SUMMARY: BookingSummary = {
   fromLine: "Sam Perera · 0423 556 789",
   toLine: "Margaret Fernando · door, Paddington QLD",
   parcelLine: "Shoebox · running shoes · $180",
-  deliveryLine: "ParcelPoint → Door · arrives 2–4 business days",
+  deliveryLine: "PARCELPOINT → Door · arrives 2–4 business days",
   priceLines: [
     { label: "Delivery", amount: "$14.95" },
     { label: "Packaging Fee", amount: "$2.00" },
@@ -1046,7 +1058,7 @@ export function buildBookingSummaryFromThread(
       threadText(messages, "price-delivery-user"),
       "door",
     ) ?? "door";
-  const deliveryKind = deliveryChoice === "door" ? "door" : "ParcelPoint";
+  const deliveryKind = deliveryChoice === "door" ? "door" : "PARCELPOINT";
   const suburb = suburbFromReceiverAddress(receiver.addressLine);
   const toLine = `${receiver.firstName} ${receiver.lastName} · ${deliveryKind}, ${suburb} QLD`;
 
@@ -1059,8 +1071,8 @@ export function buildBookingSummaryFromThread(
 
   const deliveryLine =
     deliveryChoice === "door"
-      ? "ParcelPoint → Door · arrives 2–4 business days"
-      : "ParcelPoint collection · ready when she's free";
+      ? "PARCELPOINT → Door · arrives 2–4 business days"
+      : "PARCELPOINT collection · ready when she's free";
 
   const deliveryAmount = deliveryChoice === "door" ? 14.95 : 9.95;
 

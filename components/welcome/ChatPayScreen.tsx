@@ -5,7 +5,7 @@ import { ChatFlowFooter, ChatFlowHeader } from "./ChatFlowHeader";
 import { BotReply, ChatTranscript } from "./ChatTranscript";
 import {
   buildPaySenderThreadAppend,
-  parseSenderDetailsFromMessage,
+  lookupSenderByMobile,
   payNotifyLeadUserLine,
   paySenderSeedFromThread,
   type ChatMessage,
@@ -16,6 +16,15 @@ const PGO_ORANGE = "#C44717";
 const PGO_ORANGE_BTN = "#C44111";
 
 type View = "confirm" | "edit";
+type EditReason = "fix" | "manual";
+
+function formatMobile(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length === 10) {
+    return `${digits.slice(0, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`;
+  }
+  return raw.trim();
+}
 
 function UserBubble({ children }: { children: ReactNode }) {
   return (
@@ -30,10 +39,12 @@ function UserBubble({ children }: { children: ReactNode }) {
 function BotBubble({
   bordered,
   immediate,
+  onReady,
   children,
 }: {
   bordered?: boolean;
   immediate?: boolean;
+  onReady?: () => void;
   children: ReactNode;
 }) {
   const bubble = (
@@ -48,7 +59,7 @@ function BotBubble({
     </div>
   );
   if (immediate) return bubble;
-  return <BotReply>{bubble}</BotReply>;
+  return <BotReply onReady={onReady}>{bubble}</BotReply>;
 }
 
 function FormField({
@@ -86,9 +97,9 @@ function FormField({
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 border-b border-neutral-100 py-2.5 last:border-0">
-      <span className="text-sm text-neutral-500">{label}</span>
-      <span className="text-right text-[15px] font-bold text-[#0B1B32]">
+    <div className="flex items-start justify-between gap-4 py-1.5">
+      <span className="shrink-0 text-[15px] text-neutral-500">{label}</span>
+      <span className="max-w-[58%] text-right text-[15px] font-bold leading-snug text-[#0B1B32]">
         {value}
       </span>
     </div>
@@ -113,33 +124,33 @@ export function ChatPayScreen({
   returnToReview = false,
 }: Props) {
   const senderSeed = paySenderSeedFromThread(priorThread);
-  const defaultSender = parseSenderDetailsFromMessage("");
 
   const [input, setInput] = useState("");
   const [view, setView] = useState<View>(
     openInEditMode ? "edit" : "confirm",
   );
+  const [editReason, setEditReason] = useState<EditReason>(
+    openInEditMode ? "fix" : "manual",
+  );
   const [awaitingSenderDetails, setAwaitingSenderDetails] = useState(
     !senderSeed,
+  );
+  const [enteredMobile, setEnteredMobile] = useState(
+    senderSeed?.parsed.mobile ?? "",
   );
   const [senderReplyMessage, setSenderReplyMessage] = useState(
     senderSeed?.line ?? "",
   );
   const [firstName, setFirstName] = useState(
-    senderSeed?.parsed.firstName ?? defaultSender.firstName,
+    senderSeed?.parsed.firstName ?? "",
   );
-  const [lastName, setLastName] = useState(
-    senderSeed?.parsed.lastName ?? defaultSender.lastName,
-  );
-  const [mobile, setMobile] = useState(
-    senderSeed?.parsed.mobile ?? defaultSender.mobile,
-  );
-  const [email, setEmail] = useState(
-    senderSeed?.parsed.email ?? defaultSender.email,
-  );
+  const [lastName, setLastName] = useState(senderSeed?.parsed.lastName ?? "");
+  const [mobile, setMobile] = useState(senderSeed?.parsed.mobile ?? "");
+  const [email, setEmail] = useState(senderSeed?.parsed.email ?? "");
   const [businessName, setBusinessName] = useState(
-    senderSeed?.parsed.businessName ?? defaultSender.businessName,
+    senderSeed?.parsed.businessName ?? "",
   );
+  const [manualFormReady, setManualFormReady] = useState(false);
 
   const notifyLeadLine = useMemo(
     () => payNotifyLeadUserLine(priorThread),
@@ -157,10 +168,29 @@ export function ChatPayScreen({
   const submitSenderDetails = () => {
     const trimmed = input.trim();
     if (!trimmed || !awaitingSenderDetails) return;
-    setSenderReplyMessage(trimmed);
-    applyParsedSender(parseSenderDetailsFromMessage(trimmed));
+    const known = lookupSenderByMobile(trimmed);
+    const typedMobile = known?.mobile ?? formatMobile(trimmed);
+    setEnteredMobile(typedMobile);
     setInput("");
     setAwaitingSenderDetails(false);
+    if (known) {
+      applyParsedSender(known);
+      const line = [known.firstName, known.lastName, known.mobile, known.email]
+        .filter(Boolean)
+        .join(", ");
+      setSenderReplyMessage(line);
+      setView("confirm");
+      return;
+    }
+    setFirstName("");
+    setLastName("");
+    setMobile(typedMobile);
+    setEmail("");
+    setBusinessName("");
+    setSenderReplyMessage("");
+    setEditReason("manual");
+    setManualFormReady(false);
+    setView("edit");
   };
 
   const saveDetails = () => {
@@ -178,10 +208,26 @@ export function ChatPayScreen({
 
   const handleHeaderBack = () => {
     if (view === "edit") {
-      if (returnToReview) onBack();
-      else setView("confirm");
-    } else onBack();
+      if (editReason === "fix" && returnToReview) {
+        onBack();
+        return;
+      }
+      if (editReason === "manual") {
+        setView("confirm");
+        setAwaitingSenderDetails(true);
+        setEnteredMobile("");
+        return;
+      }
+      setView("confirm");
+      return;
+    }
+    onBack();
   };
+
+  const manualReady =
+    firstName.trim().length > 0 &&
+    lastName.trim().length > 0 &&
+    email.trim().length > 0;
 
   const showFromConfirm = !awaitingSenderDetails;
 
@@ -198,20 +244,18 @@ export function ChatPayScreen({
                 <UserBubble>{notifyLeadLine}</UserBubble>
               ) : null}
               <BotBubble>
-                Will do. Last thing — who&apos;s it from? Your first and last
-                name, mobile and email. Sending for a business? Add the business
-                name too.
+                Will do. What&apos;s your mobile number?
               </BotBubble>
               {showFromConfirm ? (
                 <>
-                  <UserBubble>{senderReplyMessage}</UserBubble>
+                  <UserBubble>{enteredMobile}</UserBubble>
                   <BotReply>
                   <BotBubble immediate>
                     Here&apos;s what I&apos;ve got — look right?
                   </BotBubble>
 
                   <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
-                    <p className="text-xs font-bold uppercase tracking-wide text-[#0B1B32]">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-neutral-500">
                       From
                     </p>
                     <div className="mt-2">
@@ -231,7 +275,10 @@ export function ChatPayScreen({
                       ) : (
                         <button
                           type="button"
-                          onClick={() => setView("edit")}
+                          onClick={() => {
+                            setEditReason("fix");
+                            setView("edit");
+                          }}
                           className="shrink-0 rounded-full border border-neutral-200 bg-white px-3.5 py-1.5 text-[13px] font-bold text-[#0B1B32]"
                         >
                           + Add
@@ -262,7 +309,10 @@ export function ChatPayScreen({
                       </button>
                       <button
                         type="button"
-                        onClick={() => setView("edit")}
+                        onClick={() => {
+                          setEditReason("fix");
+                          setView("edit");
+                        }}
                         className="rounded-full border border-neutral-300 bg-white py-2.5 text-sm font-bold text-[#0B1B32]"
                       >
                         Fix something
@@ -276,6 +326,60 @@ export function ChatPayScreen({
                   </p>
                   </BotReply>
                 </>
+              ) : null}
+            </>
+          ) : editReason === "manual" ? (
+            <>
+              <BotBubble>Will do. What&apos;s your mobile number?</BotBubble>
+              <UserBubble>{enteredMobile}</UserBubble>
+              <BotBubble bordered onReady={() => setManualFormReady(true)}>
+                I don&apos;t have {enteredMobile} on file. Add your first name,
+                last name and email.
+              </BotBubble>
+
+              {manualFormReady ? (
+              <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5">
+                <div className="space-y-4">
+                  <FormField
+                    label="First name"
+                    value={firstName}
+                    onChange={setFirstName}
+                    highlighted={editReason === "manual" && !firstName.trim()}
+                  />
+                  <FormField
+                    label="Last name"
+                    value={lastName}
+                    onChange={setLastName}
+                    highlighted={editReason === "manual" && !lastName.trim()}
+                  />
+                  <FormField
+                    label="Mobile"
+                    value={mobile}
+                    onChange={setMobile}
+                  />
+                  <FormField
+                    label="Email"
+                    value={email}
+                    onChange={setEmail}
+                    highlighted={editReason === "manual" && !email.trim()}
+                  />
+                  <FormField
+                    label="Business name (optional)"
+                    value={businessName}
+                    onChange={setBusinessName}
+                    placeholder="e.g. Sam's Sneakers"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={saveDetails}
+                  disabled={editReason === "manual" && !manualReady}
+                  className="mt-6 w-full rounded-full py-3.5 text-base font-bold leading-none text-white transition active:scale-[0.99] disabled:opacity-45"
+                  style={{ backgroundColor: PGO_ORANGE_BTN }}
+                >
+                  Save details
+                </button>
+              </div>
               ) : null}
             </>
           ) : (
@@ -336,7 +440,9 @@ export function ChatPayScreen({
         placeholder={
           view === "edit"
             ? "Or tell PGo what to change..."
-            : "Your name, mobile and email..."
+            : awaitingSenderDetails
+              ? "Your mobile number..."
+              : "Type or tap the mic..."
         }
         onSubmitMessage={
           view === "confirm" && awaitingSenderDetails

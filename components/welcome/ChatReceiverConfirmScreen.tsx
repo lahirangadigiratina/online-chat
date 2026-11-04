@@ -110,26 +110,28 @@ function UserBubble({ children }: { children: ReactNode }) {
 
 function BotBubble({
   bordered,
-  immediate,
+  onReady,
   children,
 }: {
   bordered?: boolean;
-  immediate?: boolean;
+  onReady?: () => void;
   children: ReactNode;
 }) {
-  const bubble = (
-    <div className="flex justify-start">
-      <div
-        className={`max-w-[92%] rounded-[1.25rem] rounded-bl-md bg-white px-4 py-2.5 text-[15px] leading-snug text-[#0B1B32] ${
-          bordered ? "border border-neutral-200 shadow-none" : "shadow-sm"
-        }`}
-      >
-        {children}
+  return (
+    <BotReply onReady={onReady}>
+      <div className="flex justify-start">
+        <div
+          className={`max-w-[92%] rounded-[1.25rem] rounded-bl-md bg-white px-4 py-2.5 text-[15px] leading-snug text-[#0B1B32] ${
+            bordered
+              ? "border border-neutral-200 shadow-none"
+              : "shadow-sm"
+          }`}
+        >
+          {children}
+        </div>
       </div>
-    </div>
+    </BotReply>
   );
-  if (immediate) return bubble;
-  return <BotReply>{bubble}</BotReply>;
 }
 
 export function ChatReceiverConfirmScreen({
@@ -165,6 +167,9 @@ export function ChatReceiverConfirmScreen({
   const [awaitingReceiverDetails, setAwaitingReceiverDetails] = useState(
     entry === "welcome" && !seededDetails,
   );
+  const [promptReady, setPromptReady] = useState(false);
+  const [confirmReady, setConfirmReady] = useState(false);
+  const [fixReplyReady, setFixReplyReady] = useState(false);
 
   const applyParsedReceiver = (parsed: ParsedReceiverDetails) => {
     setFirstName(parsed.firstName);
@@ -184,6 +189,7 @@ export function ChatReceiverConfirmScreen({
 
   const openEdit = () => {
     setEditReason("fix");
+    setFixReplyReady(false);
     setView("edit");
   };
   const openAddBusiness = () => {
@@ -217,6 +223,7 @@ export function ChatReceiverConfirmScreen({
     setReceiverReplyMessage(trimmed);
     applyParsedReceiver(parseReceiverDetailsFromMessage(trimmed));
     setInput("");
+    setConfirmReady(false);
     setAwaitingReceiverDetails(false);
   };
 
@@ -230,6 +237,16 @@ export function ChatReceiverConfirmScreen({
   const welcomeUserInThread = priorThread.some(
     (message) => message.id === "welcome-user",
   );
+  const liveReplyIndex = priorThread.findIndex(
+    (message) =>
+      message.role === "bot" &&
+      (message.id === "welcome-receiver-prompt" ||
+        message.id === "route-receiver-prompt" ||
+        message.id === "welcome-receiver-confirm" ||
+        message.id === "route-receiver-confirm"),
+  );
+  const historyCount =
+    liveReplyIndex >= 0 ? liveReplyIndex : priorThread.length;
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#F7F8FA]">
@@ -243,19 +260,10 @@ export function ChatReceiverConfirmScreen({
         <div className="mx-auto flex max-w-lg flex-col gap-3">
           <ChatTranscript
             messages={priorThread}
-            historyCount={
-              priorThread.findIndex(
-                (message) =>
-                  message.id === "welcome-receiver-prompt" ||
-                  message.id === "route-receiver-prompt",
-              ) >= 0
-                ? priorThread.findIndex(
-                    (message) =>
-                      message.id === "welcome-receiver-prompt" ||
-                      message.id === "route-receiver-prompt",
-                  )
-                : priorThread.length
-            }
+            historyCount={historyCount}
+            onBusyChange={(busy) => {
+              if (receiverPromptInThread && !busy) setPromptReady(true);
+            }}
           />
           {entry === "welcome" &&
           welcomeInitialMessage &&
@@ -263,26 +271,27 @@ export function ChatReceiverConfirmScreen({
             <UserBubble>{welcomeInitialMessage}</UserBubble>
           ) : null}
           {!receiverPromptInThread ? (
-            <BotBubble>
+            <BotBubble onReady={() => setPromptReady(true)}>
               {entry === "welcome"
                 ? "Happy to help! Who\u2019s receiving it? Their first and last name, mobile, email and address. If it\u2019s going to a business, add the business name too."
                 : "Church St Newsagent it is. Who\u2019s receiving it? Tell me their name, mobile and address."}
             </BotBubble>
           ) : null}
 
-          {userHasReplied ? (
+          {promptReady && userHasReplied ? (
             <UserBubble>
               {entry === "welcome"
                 ? receiverReplyMessage
                 : "It's for my mum, Margaret Fernando, 0412 345 678, 18 Latrobe Terrace, Paddington in Brisbane"}
             </UserBubble>
           ) : null}
-          {userHasReplied ? (
-            <BotReply>
-              <BotBubble immediate>
-                Here&apos;s what I&apos;ve got — does it look right?
-              </BotBubble>
-              {view === "confirm" && entry === "welcome" ? (
+          {promptReady && userHasReplied ? (
+            <BotBubble onReady={() => setConfirmReady(true)}>
+              Here&apos;s what I&apos;ve got — does it look right?
+            </BotBubble>
+          ) : null}
+
+          {view === "confirm" && confirmReady && entry === "welcome" ? (
                 <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4">
                   <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-neutral-500">
                     To
@@ -332,7 +341,8 @@ export function ChatReceiverConfirmScreen({
                   </div>
                 </div>
               ) : null}
-              {view === "confirm" && entry !== "welcome" ? (
+
+          {view === "confirm" && confirmReady && entry !== "welcome" ? (
                 <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
                   <div className="flex items-start gap-3">
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#ECEEF2] text-sm font-bold text-[#0B1B32]">
@@ -384,21 +394,20 @@ export function ChatReceiverConfirmScreen({
                   </div>
                 </div>
               ) : null}
-            </BotReply>
-          ) : null}
 
           {view === "edit" ? (
             <>
               {editReason === "fix" ? (
                 <>
                   <UserBubble>Fix something.</UserBubble>
-                  <BotBubble bordered>
+                  <BotBubble bordered onReady={() => setFixReplyReady(true)}>
                     No worries — tap the bit that&apos;s wrong, or just tell me,
                     like &apos;the number is 0413...&apos;.
                   </BotBubble>
                 </>
               ) : null}
 
+              {editReason !== "fix" || fixReplyReady ? (
               <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4 sm:p-5">
                 <div className="space-y-4">
                   {entry === "welcome" ? (
@@ -485,6 +494,7 @@ export function ChatReceiverConfirmScreen({
                   Save details
                 </button>
               </div>
+              ) : null}
             </>
           ) : null}
         </div>

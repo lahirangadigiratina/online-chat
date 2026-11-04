@@ -308,7 +308,7 @@ export function ChatPayConfirmScreen({
               {dangerousStep === "contains" ? (
                 <BotBubble>
                   We can&apos;t send dangerous or prohibited goods through
-                  ParcelPoint — tap back to change what&apos;s in the parcel, or
+                  PARCELPOINT — tap back to change what&apos;s in the parcel, or
                   tell me what you&apos;re sending.
                 </BotBubble>
               ) : null}

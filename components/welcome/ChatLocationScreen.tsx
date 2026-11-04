@@ -238,7 +238,7 @@ export function ChatLocationScreen({ onBack, onContinue }: Props) {
           {phase === "ask" ? (
             <>
               <BotBubble>
-                Happy to! To find the ParcelPoints closest to you, can I use
+                Happy to! To find the PARCELPOINTS closest to you, can I use
                 your location? I only use it while you&apos;re booking.
               </BotBubble>
 
@@ -250,7 +250,7 @@ export function ChatLocationScreen({ onBack, onContinue }: Props) {
                   Find drop-off points near you
                 </h2>
                 <p className="mx-auto mt-2 max-w-[17rem] text-[13px] leading-relaxed text-neutral-500">
-                  Your location is used only to show nearby ParcelPoints. It
+                  Your location is used only to show nearby PARCELPOINTS. It
                   isn&apos;t shared or tracked after you book.
                 </p>
                 <button
@@ -292,7 +292,7 @@ export function ChatLocationScreen({ onBack, onContinue }: Props) {
               </div>
 
               <BotBubble>
-                Location is switched off for ParcelPoint GO, so I can&apos;t
+                Location is switched off for PARCELPOINT GO, so I can&apos;t
                 see where you are. You can turn it on, or just tell me a
                 suburb — either works.
               </BotBubble>
@@ -329,7 +329,7 @@ export function ChatLocationScreen({ onBack, onContinue }: Props) {
               </div>
 
               <BotBubble>
-                Thanks! Finding ParcelPoints near you...
+                Thanks! Finding PARCELPOINTS near you...
               </BotBubble>
             </>
           )}

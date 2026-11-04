@@ -8,7 +8,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "ParcelPoint Go — Chat Booking",
+  title: "PARCELPOINT Go — Chat Booking",
   description: "Chat-style parcel booking assistant",
 };
 

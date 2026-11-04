@@ -56,10 +56,10 @@ export function LocationPermissionDialog({ open, onAllow, onDeny }: Props) {
             id="location-permission-title"
             className="mt-3 text-[17px] font-semibold leading-snug text-[#0B1B32]"
           >
-            Allow ParcelPoint GO to use your location?
+            Allow PARCELPOINT GO to use your location?
           </h2>
           <p className="mt-2 text-[13px] leading-snug text-neutral-500">
-            Used to find ParcelPoints near you while you book.
+            Used to find PARCELPOINTS near you while you book.
           </p>
         </div>
         <div className="border-t border-neutral-200">

@@ -90,7 +90,7 @@ export function ChatFlowHeader({
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-[15px] font-bold leading-tight text-[#0B1B32]">
-            PGo
+            PPGo
           </p>
           <p className={`text-xs font-medium ${assistantTaglineClassName}`}>
             {assistantTagline}

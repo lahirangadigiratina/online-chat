@@ -176,7 +176,7 @@ export function WelcomeScreen() {
         <div className="flex justify-start">
           <Image
             src="/parcelpoint-compose-brand-transparent.png"
-            alt="ParcelPoint Go"
+            alt="PARCELPOINT Go"
             width={1024}
             height={252}
             priority

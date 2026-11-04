@@ -241,6 +241,9 @@ export function ChatParcelScreen({
   const [selectedId, setSelectedId] = useState<ParcelSizeId>("shoebox");
   const [packaging, setPackaging] = useState<PackagingChoice | null>(null);
   const [photoAdded, setPhotoAdded] = useState(false);
+  const [replyPending, setReplyPending] = useState(
+    () => priorThread.some((message) => message.id === "parcel-great-intro"),
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleHeaderBack = () => {
@@ -304,6 +307,7 @@ export function ChatParcelScreen({
     });
     if (match) setSelectedId(match.id);
     setInput("");
+    setReplyPending(true);
     setPhase("photo");
   };
 
@@ -311,6 +315,7 @@ export function ChatParcelScreen({
 
   const handlePhotoAdded = () => {
     setPhotoAdded(true);
+    setReplyPending(true);
     setPhase("packaging");
   };
 
@@ -327,6 +332,7 @@ export function ChatParcelScreen({
     if (!isSkip) return;
     setPhotoAdded(false);
     setInput("");
+    setReplyPending(true);
     setPhase("packaging");
   };
 
@@ -374,6 +380,7 @@ export function ChatParcelScreen({
       setCategoryId(match?.id ?? "other");
     }
     setInput("");
+    setReplyPending(true);
     setPhase("describe");
   };
 
@@ -388,6 +395,7 @@ export function ChatParcelScreen({
       }),
     );
     setInput("");
+    setReplyPending(true);
     setPhase("size");
   };
 
@@ -400,8 +408,14 @@ export function ChatParcelScreen({
       }),
     );
     setInput("");
+    setReplyPending(true);
     setPhase("size");
   };
+
+  const parcelHistoryCount =
+    priorThread.findIndex((message) => message.id === "parcel-great-intro") >= 0
+      ? priorThread.findIndex((message) => message.id === "parcel-great-intro")
+      : priorThread.length;
 
   const transcriptMessages = useMemo(() => {
     const parcelProgress = buildParcelProgressMessages(phase, {
@@ -443,18 +457,11 @@ export function ChatParcelScreen({
         <div className="mx-auto flex max-w-lg flex-col gap-3">
           <ChatTranscript
             messages={transcriptMessages}
-            historyCount={
-              priorThread.findIndex(
-                (message) => message.id === "parcel-great-intro",
-              ) >= 0
-                ? priorThread.findIndex(
-                    (message) => message.id === "parcel-great-intro",
-                  )
-                : priorThread.length
-            }
+            historyCount={parcelHistoryCount}
+            onBusyChange={setReplyPending}
           />
 
-          {phase === "describe" ? (
+          {replyPending ? null : phase === "describe" ? (
             <button
               type="button"
               onClick={skipDescription}
@@ -464,7 +471,7 @@ export function ChatParcelScreen({
             </button>
           ) : null}
 
-          {phase === "contents" ? (
+          {!replyPending && phase === "contents" ? (
               <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <h2 className="text-[17px] font-bold text-[#0B1B32]">
@@ -502,7 +509,7 @@ export function ChatParcelScreen({
               </div>
           ) : null}
 
-          {phase === "size" && (
+          {!replyPending && phase === "size" && (
             <div className="grid grid-cols-2 gap-2.5">
               {SIZES.map((size) => {
                 const selected = selectedId === size.id;
@@ -543,7 +550,7 @@ export function ChatParcelScreen({
             </div>
           )}
 
-          {phase === "photo" && (
+          {!replyPending && phase === "photo" && (
             <>
               <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
                 <div className="flex flex-col items-center rounded-xl border-2 border-dashed border-neutral-200 bg-[#FAFBFC] px-4 py-6">
@@ -603,7 +610,7 @@ export function ChatParcelScreen({
             </>
           )}
 
-          {phase === "packaging" && (
+          {!replyPending && phase === "packaging" && (
             <>
               <div className="flex items-start gap-3 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#FFEBE3]">
@@ -611,7 +618,7 @@ export function ChatParcelScreen({
                 </span>
                 <div className="min-w-0">
                   <p className="text-[15px] font-bold text-[#0B1B32]">
-                    ParcelPoint {parcelPointBoxLabel}
+                    PARCELPOINT {parcelPointBoxLabel}
                   </p>
                   <p className="mt-0.5 text-sm text-neutral-500">
                     Collected and packed at drop-off

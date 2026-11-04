@@ -116,9 +116,15 @@ function MapPinIcon() {
   );
 }
 
-function BotBubble({ children }: { children: ReactNode }) {
+function BotBubble({
+  children,
+  onReady,
+}: {
+  children: ReactNode;
+  onReady?: () => void;
+}) {
   return (
-    <BotReply>
+    <BotReply onReady={onReady}>
       <div className="flex justify-start">
         <div className="max-w-[92%] rounded-[1.25rem] rounded-bl-md bg-white px-4 py-2.5 text-[15px] leading-snug text-[#0B1B32] shadow-sm">
           {children}
@@ -199,6 +205,8 @@ export function ChatPriceScreen({
     useState<ParcelPointPickMode>("default");
   const [suburbUserLine, setSuburbUserLine] = useState("");
   const [suburbAreaLabel, setSuburbAreaLabel] = useState("");
+  const [replyPending, setReplyPending] = useState(true);
+  const [assistReadyFor, setAssistReadyFor] = useState<string | null>(null);
 
   const handleHeaderBack = () => {
     if (phase === "extras") {
@@ -230,6 +238,7 @@ export function ChatPriceScreen({
     setDelivery(choice);
     setCommittedDeliveryLine(priceDeliveryUserLine(choice));
     setInput("");
+    setReplyPending(true);
     if (choice === "parcelpoint") {
       setPhase("parcelpoint");
       setParcelPointPickMode("default");
@@ -263,6 +272,7 @@ export function ChatPriceScreen({
     }
     if (!selectedParcelPointId) return;
     setInput("");
+    setReplyPending(true);
     setPhase("worth");
   };
 
@@ -284,6 +294,7 @@ export function ChatPriceScreen({
     if (!trimmed) return;
     setCommittedWorthLine(trimmed);
     setInput("");
+    setReplyPending(true);
     setExtrasStep(delivery === "parcelpoint" ? "notify" : "signature");
     setPhase("extras");
   };
@@ -317,6 +328,7 @@ export function ChatPriceScreen({
     setSignature(choice);
     setCommittedSignatureLine(SIGNATURE_USER_DISPLAY[choice]);
     setInput("");
+    setReplyPending(true);
     setExtrasStep("notify");
   };
 
@@ -471,50 +483,18 @@ export function ChatPriceScreen({
           <ChatTranscript
             messages={transcriptMessages}
             historyCount={priorThread.length}
+            onBusyChange={setReplyPending}
           />
-          {phase === "worth" ? null : phase === "parcelpoint" ? (
+          {replyPending || phase === "worth" ? null : phase === "parcelpoint" ? (
             <>
               {parcelPointPickMode === "default" ? (
                 <>
-                  <BotBubble>
+                  <BotBubble onReady={() => setAssistReadyFor("default")}>
                     {priceParcelPointPickBot(receiverAddressHint)}
                   </BotBubble>
-                  {renderParcelPointLocationList(PARCELPOINT_LOCATION_OPTIONS)}
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <button
-                      type="button"
-                      onClick={() => setParcelPointMapOpen(true)}
-                      className="rounded-full border border-[#C44717] bg-white py-3 text-[14px] font-bold text-[#C44717]"
-                    >
-                      Show on map
-                    </button>
-                    <button
-                      type="button"
-                      onClick={startSuburbSearch}
-                      className="rounded-full border border-[#C44717] bg-white py-3 text-[14px] font-bold text-[#C44717]"
-                    >
-                      Search another suburb
-                    </button>
-                  </div>
-                  <p className="text-center text-xs leading-snug text-neutral-500">
-                    Same price — $9.95 — whichever you choose. We&apos;ll text{" "}
-                    {receiverFirstName} when it&apos;s ready to collect.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <UserBubble>Search another suburb</UserBubble>
-                  <BotBubble>
-                    {priceParcelPointSuburbSearchBot(receiverFirstName)}
-                  </BotBubble>
-                  {parcelPointPickMode === "suburbResults" ? (
+                  {assistReadyFor === "default" ? (
                     <>
-                      <UserBubble>{suburbUserLine}</UserBubble>
-                      <BotBubble>
-                        Here&apos;s what&apos;s near{" "}
-                        <span className="font-bold">{suburbAreaLabel}</span>:
-                      </BotBubble>
-                      {renderParcelPointLocationList(activeParcelPointLocations)}
+                      {renderParcelPointLocationList(PARCELPOINT_LOCATION_OPTIONS)}
                       <div className="grid grid-cols-2 gap-2.5">
                         <button
                           type="button"
@@ -528,13 +508,58 @@ export function ChatPriceScreen({
                           onClick={startSuburbSearch}
                           className="rounded-full border border-[#C44717] bg-white py-3 text-[14px] font-bold text-[#C44717]"
                         >
-                          Try another suburb
+                          Search another suburb
                         </button>
                       </div>
                       <p className="text-center text-xs leading-snug text-neutral-500">
                         Same price — $9.95 — whichever you choose. We&apos;ll text{" "}
                         {receiverFirstName} when it&apos;s ready to collect.
                       </p>
+                    </>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  <UserBubble>Search another suburb</UserBubble>
+                  <BotBubble onReady={() => setAssistReadyFor("search")}>
+                    {priceParcelPointSuburbSearchBot(receiverFirstName)}
+                  </BotBubble>
+                  {parcelPointPickMode === "suburbResults" ? (
+                    <>
+                      <UserBubble>{suburbUserLine}</UserBubble>
+                      <BotBubble
+                        onReady={() =>
+                          setAssistReadyFor(`results:${suburbAreaLabel}`)
+                        }
+                      >
+                        Here&apos;s what&apos;s near{" "}
+                        <span className="font-bold">{suburbAreaLabel}</span>:
+                      </BotBubble>
+                      {assistReadyFor === `results:${suburbAreaLabel}` ? (
+                        <>
+                          {renderParcelPointLocationList(activeParcelPointLocations)}
+                          <div className="grid grid-cols-2 gap-2.5">
+                            <button
+                              type="button"
+                              onClick={() => setParcelPointMapOpen(true)}
+                              className="rounded-full border border-[#C44717] bg-white py-3 text-[14px] font-bold text-[#C44717]"
+                            >
+                              Show on map
+                            </button>
+                            <button
+                              type="button"
+                              onClick={startSuburbSearch}
+                              className="rounded-full border border-[#C44717] bg-white py-3 text-[14px] font-bold text-[#C44717]"
+                            >
+                              Try another suburb
+                            </button>
+                          </div>
+                          <p className="text-center text-xs leading-snug text-neutral-500">
+                            Same price — $9.95 — whichever you choose. We&apos;ll text{" "}
+                            {receiverFirstName} when it&apos;s ready to collect.
+                          </p>
+                        </>
+                      ) : null}
                     </>
                   ) : null}
                 </>

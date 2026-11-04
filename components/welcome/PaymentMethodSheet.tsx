@@ -198,7 +198,7 @@ export function PaymentMethodSheet({
                 Pay in store
               </span>
               <span className="mt-0.5 block text-sm text-neutral-500">
-                EFTPOS or cash at the ParcelPoint when you drop it off
+                EFTPOS or cash at the PARCELPOINT when you drop it off
               </span>
             </span>
             <RadioMark selected={method === "store"} />
