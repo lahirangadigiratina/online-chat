@@ -1,10 +1,22 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState } from "react";
 import { ChatFlowFooter, ChatFlowHeader } from "./ChatFlowHeader";
+import { ChatTranscript } from "./ChatTranscript";
+import {
+  buildParcelProgressMessages,
+  buildParcelThreadAppend,
+  PARCEL_PHOTO_SKIP_USER,
+  parcelDescribePlaceholder,
+  parcelPackagingUserLine,
+  resolveParcelPackagingChoice,
+  suggestParcelSizeId,
+  suggestParcelSizeLabel,
+  type ChatMessage,
+  type ParcelSizeId,
+} from "./chatThread";
 
 const PGO_ORANGE = "#C44717";
-const PGO_NAVY = "#0B1B32";
 
 const SIZES = [
   {
@@ -20,7 +32,6 @@ const SIZES = [
     dims: "30x25x15cm",
     weight: "3kg",
     icon: "shoebox" as const,
-    pick: true,
   },
   {
     id: "briefcase",
@@ -48,7 +59,7 @@ const CATEGORIES = [
   { id: "other", label: "Other", icon: "📦" },
 ] as const;
 
-type ParcelPhase = "contents" | "size" | "photo" | "packaging";
+type ParcelPhase = "contents" | "describe" | "size" | "photo" | "packaging";
 type PackagingChoice = "add" | "packed";
 
 const PHOTO_TIPS = [
@@ -56,58 +67,6 @@ const PHOTO_TIPS = [
   "Good light, no blur",
   "Label side up if already packed",
 ] as const;
-
-function UserBubble({ children }: { children: ReactNode }) {
-  return (
-    <div className="flex justify-end">
-      <div className="max-w-[88%] rounded-[1.25rem] rounded-br-md bg-[#0B1B32] px-4 py-2.5 text-[15px] leading-snug text-white">
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function PhotoAddedStatus() {
-  return (
-    <div className="flex justify-end">
-      <div className="inline-flex items-center gap-2 rounded-full bg-[#0B1B32] px-4 py-2 text-[14px] font-semibold text-white">
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          aria-hidden
-          className="shrink-0 opacity-90"
-        >
-          <path
-            d="M4 8h4l2-2h4l2 2h4v11H4V8z"
-            stroke="currentColor"
-            strokeWidth="1.75"
-            strokeLinejoin="round"
-          />
-          <circle
-            cx="12"
-            cy="13"
-            r="2.5"
-            stroke="currentColor"
-            strokeWidth="1.75"
-          />
-        </svg>
-        Photo added
-      </div>
-    </div>
-  );
-}
-
-function BotBubble({ children }: { children: ReactNode }) {
-  return (
-    <div className="flex justify-start">
-      <div className="max-w-[92%] rounded-[1.25rem] rounded-bl-md bg-white px-4 py-2.5 text-[15px] leading-snug text-[#0B1B32] shadow-sm">
-        {children}
-      </div>
-    </div>
-  );
-}
 
 function SizeLineIcon({
   type,
@@ -207,35 +166,24 @@ function ParcelBoxIcon({ size }: { size?: "sm" | "md" | "lg" | "xl" }) {
   );
 }
 
-function CheckCircle() {
-  return (
-    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#C44717] text-white">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
-        <path
-          d="M5 12l4 4 10-10"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    </span>
-  );
-}
-
 function GreenTipCheck() {
   return (
-    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
-        <path
-          d="M5 12l4 4 10-10"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    </span>
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden
+      className="shrink-0 text-[#1F7A45]"
+    >
+      <path
+        d="M5 12l4 4 10-10"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
@@ -275,26 +223,33 @@ function RadioMark({ selected }: { selected: boolean }) {
 
 interface Props {
   onBack: () => void;
-  onContinue?: () => void;
+  priorThread?: ChatMessage[];
+  onContinue?: (append?: ChatMessage[]) => void;
 }
 
-export function ChatParcelScreen({ onBack, onContinue }: Props) {
+export function ChatParcelScreen({
+  onBack,
+  priorThread = [],
+  onContinue,
+}: Props) {
   const [phase, setPhase] = useState<ParcelPhase>("contents");
   const [input, setInput] = useState("");
-  const [categoryId, setCategoryId] =
-    useState<(typeof CATEGORIES)[number]["id"]>("clothing");
-  const [shortDescription, setShortDescription] = useState(
-    "A pair of running shoes",
-  );
-  const [selectedId, setSelectedId] =
-    useState<(typeof SIZES)[number]["id"]>("shoebox");
-  const [packaging, setPackaging] = useState<PackagingChoice>("add");
+  const [categoryId, setCategoryId] = useState<
+    (typeof CATEGORIES)[number]["id"] | null
+  >(null);
+  const [shortDescription, setShortDescription] = useState("");
+  const [selectedId, setSelectedId] = useState<ParcelSizeId>("shoebox");
+  const [packaging, setPackaging] = useState<PackagingChoice | null>(null);
   const [photoAdded, setPhotoAdded] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleHeaderBack = () => {
-    if (phase === "size") setPhase("contents");
-    else if (phase === "photo") setPhase("size");
+    if (phase === "size") setPhase("describe");
+    else if (phase === "describe") {
+      setCategoryId(null);
+      setShortDescription("");
+      setPhase("contents");
+    } else if (phase === "photo") setPhase("size");
     else if (phase === "packaging") {
       setPhotoAdded(false);
       setPhase("photo");
@@ -302,15 +257,53 @@ export function ChatParcelScreen({ onBack, onContinue }: Props) {
     else onBack();
   };
 
-  const selectedCategory = CATEGORIES.find((c) => c.id === categoryId)!;
+  const selectedCategory = categoryId
+    ? CATEGORIES.find((c) => c.id === categoryId)
+    : null;
   const selectedSize = SIZES.find((s) => s.id === selectedId)!;
-  const sizeUserReply = `A ${selectedSize.label.toLowerCase()}.`;
+  const sizeUserReply = `A ${selectedSize.label.toLowerCase()}`;
   const itemPhrase = /running shoe/i.test(shortDescription)
     ? "Running shoes"
     : shortDescription.trim() || "This";
 
-  const confirmSize = (id: (typeof SIZES)[number]["id"]) => {
+  const sizeSuggestion = useMemo(
+    () =>
+      suggestParcelSizeId({
+        categoryId: categoryId ?? undefined,
+        shortDescription,
+      }),
+    [categoryId, shortDescription],
+  );
+  const suggestedSizeLabel = useMemo(
+    () =>
+      suggestParcelSizeLabel({
+        categoryId: categoryId ?? undefined,
+        shortDescription,
+      }),
+    [categoryId, shortDescription],
+  );
+
+  const sizeReplyLine = (label: string) => `A ${label.toLowerCase()}`;
+
+  const selectSize = (id: ParcelSizeId) => {
+    const size = SIZES.find((entry) => entry.id === id)!;
     setSelectedId(id);
+    setInput(sizeReplyLine(size.label));
+  };
+
+  const submitSize = () => {
+    const trimmed = input.trim();
+    if (!trimmed) return;
+    const match = SIZES.find((size) => {
+      const reply = sizeReplyLine(size.label);
+      return (
+        trimmed === reply ||
+        trimmed.toLowerCase() === size.label.toLowerCase() ||
+        trimmed.toLowerCase() === `a ${size.label.toLowerCase()}`
+      );
+    });
+    if (match) setSelectedId(match.id);
+    setInput("");
     setPhase("photo");
   };
 
@@ -320,6 +313,123 @@ export function ChatParcelScreen({ onBack, onContinue }: Props) {
     setPhotoAdded(true);
     setPhase("packaging");
   };
+
+  const skipPhotoIntent = () => {
+    setInput(PARCEL_PHOTO_SKIP_USER);
+  };
+
+  const submitPhotoStep = () => {
+    const trimmed = input.trim();
+    if (!trimmed) return;
+    const isSkip =
+      trimmed === PARCEL_PHOTO_SKIP_USER ||
+      /^skip(\s+for\s+now)?$/i.test(trimmed);
+    if (!isSkip) return;
+    setPhotoAdded(false);
+    setInput("");
+    setPhase("packaging");
+  };
+
+  const selectPackaging = (choice: PackagingChoice) => {
+    setPackaging(choice);
+    setInput(parcelPackagingUserLine(choice));
+  };
+
+  const submitPackaging = () => {
+    const trimmed = input.trim();
+    if (!trimmed) return;
+    const choice = resolveParcelPackagingChoice(trimmed, packaging);
+    if (!choice) return;
+    setInput("");
+    onContinue?.(
+      buildParcelThreadAppend({
+        categoryId: categoryId ?? undefined,
+        categoryLabel: selectedCategory?.label ?? "Contents",
+        categoryIcon: selectedCategory?.icon,
+        shortDescription,
+        itemPhrase,
+        selectedSizeLabel: selectedSize.label,
+        sizeUserReply,
+        photoAdded,
+        skippedPhoto: !photoAdded,
+        parcelPointBoxLabel,
+        packagingUserReply: parcelPackagingUserLine(choice),
+      }),
+    );
+  };
+
+  const selectCategory = (cat: (typeof CATEGORIES)[number]) => {
+    setCategoryId(cat.id);
+    setInput(`${cat.icon} ${cat.label}`);
+  };
+
+  const submitContents = () => {
+    const trimmed = input.trim();
+    if (!trimmed) return;
+    if (!categoryId) {
+      const match = CATEGORIES.find(
+        (cat) =>
+          trimmed === `${cat.icon} ${cat.label}` || trimmed === cat.label,
+      );
+      setCategoryId(match?.id ?? "other");
+    }
+    setInput("");
+    setPhase("describe");
+  };
+
+  const submitDescription = () => {
+    const trimmed = input.trim();
+    if (!trimmed) return;
+    setShortDescription(trimmed);
+    setSelectedId(
+      suggestParcelSizeId({
+        categoryId: categoryId ?? undefined,
+        shortDescription: trimmed,
+      }),
+    );
+    setInput("");
+    setPhase("size");
+  };
+
+  const skipDescription = () => {
+    setShortDescription("");
+    setSelectedId(
+      suggestParcelSizeId({
+        categoryId: categoryId ?? undefined,
+        shortDescription: "",
+      }),
+    );
+    setInput("");
+    setPhase("size");
+  };
+
+  const transcriptMessages = useMemo(() => {
+    const parcelProgress = buildParcelProgressMessages(phase, {
+      categoryId: categoryId ?? undefined,
+      categoryLabel: selectedCategory?.label,
+      categoryIcon: selectedCategory?.icon,
+      shortDescription,
+      itemPhrase,
+      suggestedSizeLabel,
+      selectedSizeLabel: selectedSize.label,
+      sizeUserReply,
+      photoAdded,
+      parcelPointBoxLabel,
+    });
+    return [...priorThread, ...parcelProgress];
+  }, [
+    priorThread,
+    phase,
+    categoryId,
+    selectedCategory,
+    shortDescription,
+    itemPhrase,
+    suggestedSizeLabel,
+    selectedSize.label,
+    sizeUserReply,
+    photoAdded,
+    parcelPointBoxLabel,
+  ]);
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#F7F8FA]">
@@ -331,75 +441,55 @@ export function ChatParcelScreen({ onBack, onContinue }: Props) {
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
         <div className="mx-auto flex max-w-lg flex-col gap-3">
+          <ChatTranscript messages={transcriptMessages} />
+
+          {phase === "describe" ? (
+            <button
+              type="button"
+              onClick={skipDescription}
+              className="block text-left text-[15px] font-semibold text-[#0B1B32] underline underline-offset-2"
+            >
+              Skip
+            </button>
+          ) : null}
+
           {phase === "contents" ? (
-            <>
-              <UserBubble>Looks right</UserBubble>
-              <BotBubble>
-                Great! Now, what&apos;s inside the parcel?
-              </BotBubble>
               <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
-                <h2 className="text-[17px] font-bold text-[#0B1B32]">
-                  What&apos;s inside?
-                </h2>
-                <div className="mt-3 flex flex-col">
-                  {CATEGORIES.map((cat, index) => {
+                <div className="flex items-start justify-between gap-3">
+                  <h2 className="text-[17px] font-bold text-[#0B1B32]">
+                    What&apos;s inside?
+                  </h2>
+                  <button
+                    type="button"
+                    className="shrink-0 text-right text-[13px] font-semibold text-[#C44717] underline underline-offset-2"
+                  >
+                    Prohibited or dangerous goods?
+                  </button>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2.5">
+                  {CATEGORIES.map((cat) => {
                     const selected = categoryId === cat.id;
                     return (
                       <button
                         key={cat.id}
                         type="button"
-                        onClick={() => setCategoryId(cat.id)}
-                        className={`flex w-full items-center gap-3 py-3 text-left ${
-                          index > 0 ? "border-t border-neutral-100" : ""
-                        } ${selected ? "bg-[#FFF8F4]" : ""}`}
+                        onClick={() => selectCategory(cat)}
+                        className={`inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-[15px] transition ${
+                          selected
+                            ? "border-2 border-[#C44717] bg-[#FFF8F4] font-bold text-[#0B1B32]"
+                            : "border border-neutral-200 bg-white font-medium text-[#0B1B32]"
+                        }`}
                       >
-                        <span className="text-xl" aria-hidden>
+                        <span className="text-base leading-none" aria-hidden>
                           {cat.icon}
                         </span>
-                        <span className="min-w-0 flex-1 text-[15px] font-medium text-[#0B1B32]">
-                          {cat.label}
-                        </span>
-                        {selected ? <CheckCircle /> : null}
+                        {cat.label}
                       </button>
                     );
                   })}
                 </div>
-                <label className="mt-4 block">
-                  <span className="mb-1.5 block text-[13px] font-medium text-neutral-600">
-                    Short description (optional)
-                  </span>
-                  <input
-                    type="text"
-                    value={shortDescription}
-                    onChange={(e) => setShortDescription(e.target.value)}
-                    className="w-full rounded-xl border border-neutral-200 bg-white px-3.5 py-3 text-[15px] text-[#0B1B32] outline-none focus:border-[#C44717] focus:ring-2 focus:ring-[#C44717]/12"
-                  />
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setPhase("size")}
-                  className="mt-4 w-full rounded-full py-3.5 text-base font-bold text-white transition active:scale-[0.99]"
-                  style={{ backgroundColor: PGO_NAVY }}
-                >
-                  Continue
-                </button>
               </div>
-            </>
           ) : null}
-
-          {(phase === "size" || phase === "photo" || phase === "packaging") && (
-            <>
-              <UserBubble>
-                {selectedCategory.label} —{" "}
-                {shortDescription.trim().toLowerCase() ||
-                  "a pair of running shoes"}
-              </UserBubble>
-              <BotBubble>
-                Thanks! {itemPhrase} in their box usually fit a{" "}
-                <span className="font-bold">Shoebox</span>. Sound right?
-              </BotBubble>
-            </>
-          )}
 
           {phase === "size" && (
             <div className="grid grid-cols-2 gap-2.5">
@@ -409,14 +499,14 @@ export function ChatParcelScreen({ onBack, onContinue }: Props) {
                   <button
                     key={size.id}
                     type="button"
-                    onClick={() => confirmSize(size.id)}
+                    onClick={() => selectSize(size.id)}
                     className={`relative flex flex-col items-center rounded-2xl border px-3 py-4 text-center shadow-sm transition ${
                       selected
                         ? "border-2 border-[#C44717] bg-[#FFF8F4]"
                         : "border border-neutral-200 bg-white"
                     }`}
                   >
-                    {"pick" in size ? (
+                    {size.id === sizeSuggestion ? (
                       <span className="absolute right-2 top-2 rounded-full bg-[#C44717] px-2.5 py-0.5 text-[10px] font-semibold text-white">
                         PGo&apos;s pick
                       </span>
@@ -442,25 +532,15 @@ export function ChatParcelScreen({ onBack, onContinue }: Props) {
             </div>
           )}
 
-          {(phase === "photo" || phase === "packaging") && (
-            <>
-              <UserBubble>{sizeUserReply}</UserBubble>
-              <BotBubble>
-                {selectedSize.label} it is. Could you add a quick photo of the
-                parcel? It helps the ParcelPoint match it at drop-off and
-                supports any Parcel Protection claim.
-              </BotBubble>
-            </>
-          )}
-
           {phase === "photo" && (
+            <>
               <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
                 <div className="flex flex-col items-center rounded-xl border-2 border-dashed border-neutral-200 bg-[#FAFBFC] px-4 py-6">
                   <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[#FFEBE3]">
                     <CameraIcon />
                   </span>
-                  <p className="mt-3 text-[15px] font-bold text-[#0B1B32]">
-                    Add parcel photo
+                  <p className="mt-3 text-center text-[15px] font-bold text-[#0B1B32]">
+                    Add parcel photo (optional)
                   </p>
                   <p className="mt-1 text-xs text-neutral-500">
                     JPG or PNG, up to 10 MB
@@ -501,21 +581,23 @@ export function ChatParcelScreen({ onBack, onContinue }: Props) {
                     </li>
                   ))}
                 </ul>
+                <button
+                  type="button"
+                  onClick={skipPhotoIntent}
+                  className="mt-4 w-full text-center text-[15px] font-semibold text-[#0B1B32] underline underline-offset-2"
+                >
+                  Skip for now
+                </button>
               </div>
+            </>
           )}
 
-          {phase === "packaging" && photoAdded && (
+          {phase === "packaging" && (
             <>
-              <PhotoAddedStatus />
-              <BotBubble>
-                Thanks, that&apos;s a clear photo. Is it already packed, or
-                would you like packaging? We&apos;ll have a {parcelPointBoxLabel}{" "}
-                ready at the ParcelPoint for{" "}
-                <span className="font-bold">$2.00</span>.
-              </BotBubble>
-
               <div className="flex items-start gap-3 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
-                <ParcelBoxIcon />
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#FFEBE3]">
+                  <ParcelBoxIcon />
+                </span>
                 <div className="min-w-0">
                   <p className="text-[15px] font-bold text-[#0B1B32]">
                     ParcelPoint {parcelPointBoxLabel}
@@ -529,7 +611,7 @@ export function ChatParcelScreen({ onBack, onContinue }: Props) {
               <div className="flex flex-col gap-2.5">
                 <button
                   type="button"
-                  onClick={() => setPackaging("add")}
+                  onClick={() => selectPackaging("add")}
                   className={`flex w-full items-center gap-3 rounded-2xl border p-4 text-left transition ${
                     packaging === "add"
                       ? "border-2 border-[#C44717] bg-[#FFF8F4]"
@@ -551,7 +633,7 @@ export function ChatParcelScreen({ onBack, onContinue }: Props) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setPackaging("packed")}
+                  onClick={() => selectPackaging("packed")}
                   className={`flex w-full items-center gap-3 rounded-2xl border p-4 text-left transition ${
                     packaging === "packed"
                       ? "border-2 border-[#C44717] bg-[#FFF8F4]"
@@ -577,62 +659,37 @@ export function ChatParcelScreen({ onBack, onContinue }: Props) {
         </div>
       </div>
 
-      {phase === "contents" ? (
-        <ChatFlowFooter
-          input={input}
-          onInputChange={setInput}
-          placeholder="Type or tap the mic..."
-          accentOrange={PGO_ORANGE}
-        />
-      ) : (
-        <footer className="shrink-0 border-t border-neutral-200/80 bg-white px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-5">
-          {phase === "packaging" ? (
-            <button
-              type="button"
-              onClick={onContinue}
-              className="mb-2.5 w-full rounded-full py-3.5 text-base font-bold text-white transition active:scale-[0.99]"
-              style={{ backgroundColor: PGO_NAVY }}
-            >
-              Continue
-            </button>
-          ) : null}
-          <div className="flex items-center gap-2.5">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={
-                phase === "photo" || phase === "packaging"
-                  ? 'e.g. "it\'s about 2 kilos"'
-                  : 'e.g. "shoebox"'
-              }
-              aria-label="Message"
-              className="min-w-0 flex-1 rounded-full bg-[#ECEEF2] px-5 py-3.5 text-[15px] text-[#0B1B32] outline-none placeholder:text-[#9CA3AF]"
-            />
-            <button
-              type="button"
-              aria-label="Voice input"
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-white"
-              style={{ backgroundColor: PGO_ORANGE }}
-            >
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden
-              >
-                <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3z" />
-                <path d="M19 11a7 7 0 0 1-14 0M12 18v3" />
-              </svg>
-            </button>
-          </div>
-        </footer>
-      )}
+      <ChatFlowFooter
+        input={input}
+        onInputChange={setInput}
+        placeholder={
+          phase === "contents"
+            ? "Clothing & Fashion"
+            : phase === "describe"
+              ? parcelDescribePlaceholder(categoryId ?? undefined)
+              : phase === "packaging"
+                ? parcelPackagingUserLine("add")
+                : phase === "photo"
+                  ? PARCEL_PHOTO_SKIP_USER
+                  : phase === "size"
+                    ? sizeReplyLine(suggestedSizeLabel)
+                    : "Type or tap the mic..."
+        }
+        onSubmitMessage={
+          phase === "contents"
+            ? submitContents
+            : phase === "describe"
+              ? submitDescription
+              : phase === "size"
+                ? submitSize
+                : phase === "photo"
+                  ? submitPhotoStep
+                  : phase === "packaging"
+                    ? submitPackaging
+                    : undefined
+        }
+        accentOrange={PGO_ORANGE}
+      />
     </div>
   );
 }

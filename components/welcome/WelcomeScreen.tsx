@@ -4,6 +4,12 @@ import Image from "next/image";
 import { useState } from "react";
 import { ChatLocationScreen } from "./ChatLocationScreen";
 import { ChatReceiverConfirmScreen } from "./ChatReceiverConfirmScreen";
+import {
+  buildWelcomeReceiverThread,
+  type ChatMessage,
+  WELCOME_DEMO_USER_MESSAGE,
+  withParcelIntro,
+} from "./chatThread";
 import { ChatRouteScreen } from "./ChatRouteScreen";
 import { VoiceTalkScreen } from "./VoiceTalkScreen";
 
@@ -57,9 +63,20 @@ export function WelcomeScreen() {
   );
   const [chatEntryPhase, setChatEntryPhase] = useState<ChatEntryPhase>("route");
   const [chatMountKey, setChatMountKey] = useState(0);
+  const [lastSentMessage, setLastSentMessage] = useState("");
+  const [chatInitialThread, setChatInitialThread] = useState<ChatMessage[]>(
+    [],
+  );
+  const [receiverSeed, setReceiverSeed] = useState<"compose" | "voice">(
+    "compose",
+  );
 
-  const openChat = (phase: ChatEntryPhase) => {
+  const openChat = (
+    phase: ChatEntryPhase,
+    initialThread: ChatMessage[] = [],
+  ) => {
     setChatEntryPhase(phase);
+    setChatInitialThread(initialThread);
     setChatMountKey((k) => k + 1);
     setScreen("chat");
   };
@@ -67,6 +84,8 @@ export function WelcomeScreen() {
   const handleSend = () => {
     const trimmed = text.trim();
     if (!trimmed) return;
+    setLastSentMessage(trimmed);
+    setReceiverSeed("compose");
     setText("");
     setScreen("receiver");
   };
@@ -75,9 +94,16 @@ export function WelcomeScreen() {
     return (
       <VoiceTalkScreen
         onClose={() => setScreen("welcome")}
-        onStop={() => {
+        onOpenChat={() => {
           setChatBackTarget("welcome");
           openChat("route");
+        }}
+        onStop={() => {
+          setLastSentMessage(
+            "I want to send a pair of shoes to my mum in Brisbane",
+          );
+          setReceiverSeed("voice");
+          setScreen("receiver");
         }}
       />
     );
@@ -96,13 +122,37 @@ export function WelcomeScreen() {
   }
 
   if (screen === "receiver") {
+    const fromVoice = receiverSeed === "voice";
     return (
       <ChatReceiverConfirmScreen
         entry="welcome"
-        onBack={() => setScreen("welcome")}
-        onLooksRight={() => {
+        userMessage={fromVoice ? undefined : lastSentMessage}
+        confirmedDetailsMessage={
+          fromVoice ? WELCOME_DEMO_USER_MESSAGE : undefined
+        }
+        priorThread={
+          !fromVoice && lastSentMessage.trim()
+            ? [
+                {
+                  id: "welcome-user",
+                  role: "user",
+                  content: lastSentMessage.trim(),
+                },
+              ]
+            : []
+        }
+        onBack={() => setScreen(fromVoice ? "voice" : "welcome")}
+        onLooksRight={(receiverDetailsMessage) => {
           setChatBackTarget("welcome");
-          openChat("parcel");
+          openChat(
+            "parcel",
+            withParcelIntro(
+              buildWelcomeReceiverThread(
+                lastSentMessage,
+                receiverDetailsMessage,
+              ),
+            ),
+          );
         }}
       />
     );
@@ -113,6 +163,7 @@ export function WelcomeScreen() {
       <ChatRouteScreen
         key={chatMountKey}
         initialPhase={chatEntryPhase}
+        initialThread={chatInitialThread}
         onBack={() => setScreen(chatBackTarget)}
         onFinished={() => setScreen("welcome")}
       />
@@ -134,7 +185,7 @@ export function WelcomeScreen() {
           />
         </div>
         <p className="mt-5 text-[15px] leading-snug text-[#6B7280]">
-          Hi, I&apos;m PGo — no sign-up needed
+          Hi, I&apos;m PPGo
         </p>
         <h1 className="mt-2 text-[1.75rem] font-bold leading-[1.2] tracking-tight text-[#0B1B32] sm:text-[2rem]">
           What are we sending today?

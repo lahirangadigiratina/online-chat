@@ -1,7 +1,16 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { ChatFlowFooter, ChatFlowHeader } from "./ChatFlowHeader";
+import { ChatTranscript } from "./ChatTranscript";
+import {
+  buildPaySenderThreadAppend,
+  parseSenderDetailsFromMessage,
+  payNotifyLeadUserLine,
+  paySenderSeedFromThread,
+  type ChatMessage,
+  type ParsedReceiverDetails,
+} from "./chatThread";
 
 const PGO_ORANGE = "#C44717";
 const PGO_ORANGE_BTN = "#C44111";
@@ -84,91 +93,184 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 interface Props {
   onBack: () => void;
-  onLooksRight?: () => void;
+  onLooksRight?: (append?: ChatMessage[]) => void;
+  priorThread?: ChatMessage[];
+  /** Opens the sender form (Fix something) instead of the confirm card */
+  openInEditMode?: boolean;
+  /** Back from confirm returns to booking review instead of price */
+  returnToReview?: boolean;
 }
 
-export function ChatPayScreen({ onBack, onLooksRight }: Props) {
+export function ChatPayScreen({
+  onBack,
+  onLooksRight,
+  priorThread = [],
+  openInEditMode = false,
+  returnToReview = false,
+}: Props) {
+  const senderSeed = paySenderSeedFromThread(priorThread);
+  const defaultSender = parseSenderDetailsFromMessage("");
+
   const [input, setInput] = useState("");
-  const [view, setView] = useState<View>("confirm");
+  const [view, setView] = useState<View>(
+    openInEditMode ? "edit" : "confirm",
+  );
+  const [awaitingSenderDetails, setAwaitingSenderDetails] = useState(
+    !senderSeed,
+  );
+  const [senderReplyMessage, setSenderReplyMessage] = useState(
+    senderSeed?.line ?? "",
+  );
+  const [firstName, setFirstName] = useState(
+    senderSeed?.parsed.firstName ?? defaultSender.firstName,
+  );
+  const [lastName, setLastName] = useState(
+    senderSeed?.parsed.lastName ?? defaultSender.lastName,
+  );
+  const [mobile, setMobile] = useState(
+    senderSeed?.parsed.mobile ?? defaultSender.mobile,
+  );
+  const [email, setEmail] = useState(
+    senderSeed?.parsed.email ?? defaultSender.email,
+  );
+  const [businessName, setBusinessName] = useState(
+    senderSeed?.parsed.businessName ?? defaultSender.businessName,
+  );
 
-  const [firstName, setFirstName] = useState("Sam");
-  const [lastName, setLastName] = useState("Perera");
-  const [mobile, setMobile] = useState("0423 556 789");
-  const [email, setEmail] = useState("sam.perera@example.com");
-  const [businessName, setBusinessName] = useState("");
+  const notifyLeadLine = useMemo(
+    () => payNotifyLeadUserLine(priorThread),
+    [priorThread],
+  );
 
-  const saveDetails = () => setView("confirm");
+  const applyParsedSender = (parsed: ParsedReceiverDetails) => {
+    setFirstName(parsed.firstName);
+    setLastName(parsed.lastName);
+    setMobile(parsed.mobile);
+    setEmail(parsed.email);
+    setBusinessName(parsed.businessName);
+  };
+
+  const submitSenderDetails = () => {
+    const trimmed = input.trim();
+    if (!trimmed || !awaitingSenderDetails) return;
+    setSenderReplyMessage(trimmed);
+    applyParsedSender(parseSenderDetailsFromMessage(trimmed));
+    setInput("");
+    setAwaitingSenderDetails(false);
+  };
+
+  const saveDetails = () => {
+    const line = [
+      firstName && lastName ? `${firstName} ${lastName}` : firstName || lastName,
+      mobile,
+      email,
+      businessName.trim(),
+    ]
+      .filter(Boolean)
+      .join(", ");
+    if (line) setSenderReplyMessage(line);
+    setView("confirm");
+  };
+
+  const handleHeaderBack = () => {
+    if (view === "edit") {
+      if (returnToReview) onBack();
+      else setView("confirm");
+    } else onBack();
+  };
+
+  const showFromConfirm = !awaitingSenderDetails;
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#F7F8FA]">
-      <ChatFlowHeader activeStep="Pay" onBack={onBack} accentOrange={PGO_ORANGE} />
+      <ChatFlowHeader activeStep="Pay" onBack={handleHeaderBack} accentOrange={PGO_ORANGE} />
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
         <div className="mx-auto flex max-w-lg flex-col gap-3">
+          <ChatTranscript messages={priorThread} />
           {view === "confirm" ? (
             <>
-              <UserBubble>Text her please</UserBubble>
+              {notifyLeadLine ? (
+                <UserBubble>{notifyLeadLine}</UserBubble>
+              ) : null}
               <BotBubble>
                 Will do. Last thing — who&apos;s it from? Your first and last
                 name, mobile and email. Sending for a business? Add the business
                 name too.
               </BotBubble>
-              <UserBubble>
-                Sam Perera, 0423 556 789, sam.perera@example.com
-              </UserBubble>
-              <BotBubble>Here&apos;s what I&apos;ve got — look right?</BotBubble>
+              {showFromConfirm ? (
+                <>
+                  <UserBubble>{senderReplyMessage}</UserBubble>
+                  <BotBubble>
+                    Here&apos;s what I&apos;ve got — look right?
+                  </BotBubble>
 
-              <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-wide text-[#0B1B32]">
-                  From
-                </p>
-                <div className="mt-2">
-                  <DetailRow label="First name" value={firstName} />
-                  <DetailRow label="Last name" value={lastName} />
-                  <DetailRow label="Mobile" value={mobile} />
-                  <DetailRow label="Email" value={email} />
-                </div>
-                <div className="mt-2 flex items-center justify-between border-t border-neutral-100 pt-3">
-                  <span className="text-sm text-neutral-500">
-                    Business name (optional)
-                  </span>
-                  {businessName ? (
-                    <span className="text-sm font-bold text-[#0B1B32]">
-                      {businessName}
-                    </span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setView("edit")}
-                      className="text-sm font-bold text-[#C44717]"
-                    >
-                      + Add
-                    </button>
-                  )}
-                </div>
-                <div className="mt-4 grid grid-cols-2 gap-2.5">
-                  <button
-                    type="button"
-                    onClick={onLooksRight}
-                    className="rounded-full py-2.5 text-sm font-bold text-white"
-                    style={{ backgroundColor: PGO_ORANGE }}
-                  >
-                    Looks right
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setView("edit")}
-                    className="rounded-full border border-neutral-300 bg-white py-2.5 text-sm font-bold text-[#0B1B32]"
-                  >
-                    Fix something
-                  </button>
-                </div>
-              </div>
+                  <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+                    <p className="text-xs font-bold uppercase tracking-wide text-[#0B1B32]">
+                      From
+                    </p>
+                    <div className="mt-2">
+                      <DetailRow label="First name" value={firstName} />
+                      <DetailRow label="Last name" value={lastName} />
+                      <DetailRow label="Mobile" value={mobile} />
+                      <DetailRow label="Email" value={email} />
+                    </div>
+                    <div className="mt-3 flex items-center justify-between gap-3 border-t border-neutral-200 pt-3">
+                      <span className="text-[15px] text-neutral-500">
+                        Business name (optional)
+                      </span>
+                      {businessName.trim() ? (
+                        <span className="text-sm font-bold text-[#0B1B32]">
+                          {businessName}
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setView("edit")}
+                          className="shrink-0 rounded-full border border-neutral-200 bg-white px-3.5 py-1.5 text-[13px] font-bold text-[#0B1B32]"
+                        >
+                          + Add
+                        </button>
+                      )}
+                    </div>
+                    <div className="mt-4 grid grid-cols-2 gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const line =
+                            senderReplyMessage.trim() ||
+                            [
+                              firstName && lastName
+                                ? `${firstName} ${lastName}`
+                                : firstName || lastName,
+                              mobile,
+                              email,
+                            ]
+                              .filter(Boolean)
+                              .join(", ");
+                          onLooksRight?.(buildPaySenderThreadAppend(line));
+                        }}
+                        className="rounded-full py-2.5 text-sm font-bold text-white"
+                        style={{ backgroundColor: PGO_ORANGE }}
+                      >
+                        Looks right
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setView("edit")}
+                        className="rounded-full border border-neutral-300 bg-white py-2.5 text-sm font-bold text-[#0B1B32]"
+                      >
+                        Fix something
+                      </button>
+                    </div>
+                  </div>
 
-              <p className="text-center text-xs leading-snug text-neutral-500">
-                Used only for this booking — your receipt, label and delivery
-                updates.
-              </p>
+                  <p className="text-center text-xs leading-snug text-neutral-500">
+                    Used only for this booking — your receipt, label and
+                    delivery updates.
+                  </p>
+                </>
+              ) : null}
             </>
           ) : (
             <>
@@ -229,6 +331,11 @@ export function ChatPayScreen({ onBack, onLooksRight }: Props) {
           view === "edit"
             ? "Or tell PGo what to change..."
             : "Your name, mobile and email..."
+        }
+        onSubmitMessage={
+          view === "confirm" && awaitingSenderDetails
+            ? submitSenderDetails
+            : undefined
         }
         accentOrange={PGO_ORANGE}
       />

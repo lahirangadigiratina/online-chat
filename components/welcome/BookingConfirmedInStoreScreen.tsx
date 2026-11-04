@@ -1,35 +1,57 @@
 "use client";
 
-const PGO_ORANGE = "#C44717";
-const AMOUNT = "$24.90";
+import { useMemo } from "react";
+import {
+  buildBookingConfirmedDetails,
+  type ChatMessage,
+} from "./chatThread";
+import { ChatFlowHeader } from "./ChatFlowHeader";
+import { ChatTranscript } from "./ChatTranscript";
 
-function CloseIcon() {
+const PGO_ORANGE = "#C44717";
+const PGO_NAVY = "#0B1B32";
+
+function BotBubble({ children }: { children: React.ReactNode }) {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M6 6l12 12M18 6L6 18"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
+    <div className="flex justify-start">
+      <div className="max-w-[92%] rounded-[1.25rem] rounded-bl-md bg-white px-4 py-2.5 text-[15px] leading-snug text-[#0B1B32] shadow-sm">
+        {children}
+      </div>
+    </div>
   );
 }
 
-function ClockIcon() {
+function BarcodePlaceholder() {
+  const bars = [
+    3, 1, 2, 1, 3, 2, 1, 4, 1, 2, 3, 1, 2, 1, 3, 2, 2, 1, 3, 1, 2, 4, 1, 2,
+    3, 1, 2, 1, 3, 2, 1, 2, 3, 1, 4, 1, 2, 1, 3, 2, 1, 3, 2, 1, 2, 3, 1, 2,
+  ];
   return (
-    <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[#FEF3C7]">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden>
-        <circle cx="12" cy="12" r="9" stroke="#92400E" strokeWidth="2" />
-        <path
-          d="M12 7v5l3 2"
-          stroke="#92400E"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+    <div className="flex h-16 w-full items-end justify-center gap-[2px] px-2">
+      {bars.map((w, index) => (
+        <span
+          key={index}
+          className="rounded-sm bg-[#0B1B32]"
+          style={{ width: w, height: "100%" }}
+          aria-hidden
         />
-      </svg>
-    </span>
+      ))}
+    </div>
+  );
+}
+
+function ClockIconSmall() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <circle cx="12" cy="12" r="9" stroke="#92400E" strokeWidth="2" />
+      <path
+        d="M12 7v5l3 2"
+        stroke="#92400E"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
@@ -61,84 +83,77 @@ function ShareIcon() {
   );
 }
 
-function MapPinIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M12 21s7-4.5 7-11a7 7 0 10-14 0c0 6.5 7 11 7 11z"
-        stroke="#C44717"
-        strokeWidth="1.75"
-      />
-      <circle cx="12" cy="10" r="2.5" fill="#C44717" />
-    </svg>
-  );
-}
-
 interface Props {
   onClose: () => void;
   onSendAnother: () => void;
+  priorThread?: ChatMessage[];
 }
 
 export function BookingConfirmedInStoreScreen({
   onClose,
   onSendAnother,
+  priorThread = [],
 }: Props) {
+  const details = useMemo(
+    () =>
+      buildBookingConfirmedDetails(priorThread, { paymentMethod: "store" }),
+    [priorThread],
+  );
+
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-[#F7F8FA]">
-      <button
-        type="button"
-        onClick={onClose}
-        aria-label="Close"
-        className="absolute right-4 top-[max(0.75rem,env(safe-area-inset-top))] z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#0B1B32] shadow-sm"
-      >
-        <CloseIcon />
-      </button>
+      <ChatFlowHeader
+        activeStep="Pay"
+        onBack={onClose}
+        accentOrange={PGO_ORANGE}
+        assistantTagline="Conversation ended"
+        assistantTaglineClassName="text-neutral-500"
+      />
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6 pt-[max(3rem,env(safe-area-inset-top))]">
-        <div className="mx-auto flex max-w-lg flex-col items-center gap-4">
-          <ClockIcon />
-          <h1 className="text-center text-[1.35rem] font-bold leading-snug text-[#0B1B32]">
-            Booked! Pay when you drop it off.
-          </h1>
-
-          <div className="w-full rounded-2xl border border-neutral-200 bg-white px-4 py-4 text-[15px] leading-snug text-[#0B1B32] shadow-sm">
-            Take it to any ParcelPoint by [cut-off time]. Show this code at the
-            counter and pay{" "}
-            <span className="font-bold">{AMOUNT}</span> by EFTPOS or cash —
-            they&apos;ll print and attach the label.
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+        <div className="mx-auto flex max-w-lg flex-col gap-3">
+          <ChatTranscript messages={priorThread} />
+          <div className="flex justify-center">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#FEF3C7] px-3 py-1.5 text-[13px] font-bold text-[#92400E]">
+              <ClockIconSmall />
+              {details.statusBadge}
+            </span>
           </div>
 
-          <div className="flex w-full gap-3 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
-            <div className="flex h-[5.5rem] w-[5.5rem] shrink-0 items-center justify-center rounded-xl border border-dashed border-neutral-300 bg-[#F7F8FA] text-xs text-neutral-400">
-              QR code
+          <BotBubble>
+            {details.bookedMessage}{" "}
+            <span className="font-bold">{details.total}</span> by EFTPOS or
+            cash — they&apos;ll print and attach the label.
+          </BotBubble>
+
+          <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
+            <div className="px-4 pt-4">
+              <BarcodePlaceholder />
+              <p className="mt-2 text-center font-mono text-[13px] font-bold tracking-wide text-[#0B1B32]">
+                {details.barcodeCaption}
+              </p>
             </div>
-            <div className="min-w-0 flex-1">
+            <div className="mt-4 border-t border-neutral-100 px-4 py-3">
               <p className="text-[11px] font-bold uppercase tracking-wide text-neutral-500">
-                Booking ref
+                {details.infoSectionTitle}
               </p>
-              <p className="mt-0.5 text-[15px] font-bold text-[#0B1B32]">
-                [BOOKING REF]
+              <p className="mt-1 text-[15px] font-bold text-[#C44717]">
+                {details.infoPrimary}
               </p>
-              <p
-                className="mt-1 text-sm font-semibold"
-                style={{ color: PGO_ORANGE }}
-              >
-                {AMOUNT} due in store
-              </p>
-              <p className="text-sm text-neutral-500">
-                Medium · ParcelPoint → Door
+              <p className="mt-0.5 text-sm text-neutral-600">
+                {details.infoSecondary}
               </p>
             </div>
           </div>
 
-          <div className="grid w-full grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-2 gap-2.5">
             <button
               type="button"
               className="flex items-center justify-center gap-2 rounded-full py-3.5 text-sm font-bold text-white"
               style={{ backgroundColor: PGO_ORANGE }}
             >
               <DownloadIcon />
-              Save code
+              {details.primaryActionLabel}
             </button>
             <button
               type="button"
@@ -149,25 +164,26 @@ export function BookingConfirmedInStoreScreen({
             </button>
           </div>
 
-          <button
-            type="button"
-            className="flex w-full items-center gap-3 rounded-2xl border border-neutral-200 bg-white px-4 py-3.5 text-left shadow-sm"
-          >
-            <MapPinIcon />
-            <span className="text-[15px] font-bold text-[#0B1B32]">
-              Find a ParcelPoint
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={onSendAnother}
-            className="mt-2 rounded-full border border-[#C44717] bg-white px-6 py-2.5 text-sm font-bold text-[#C44717]"
-          >
-            Send another
-          </button>
+          <BotBubble>
+            I&apos;ve also emailed your receipt and booking to{" "}
+            {details.receiptEmail}.
+          </BotBubble>
         </div>
       </div>
+
+      <footer className="shrink-0 border-t border-neutral-200/80 bg-white px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-5">
+        <p className="mb-3 text-center text-xs text-neutral-500">
+          ✓ Booking complete — this conversation has ended
+        </p>
+        <button
+          type="button"
+          onClick={onSendAnother}
+          className="w-full rounded-full py-3.5 text-[15px] font-bold text-white transition active:scale-[0.99]"
+          style={{ backgroundColor: PGO_NAVY }}
+        >
+          Send another parcel
+        </button>
+      </footer>
     </div>
   );
 }

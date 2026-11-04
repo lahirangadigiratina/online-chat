@@ -1,35 +1,50 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { ChatFlowHeader } from "./ChatFlowHeader";
+import { useMemo, useState, type ReactNode } from "react";
+import { ChatFlowFooter, ChatFlowHeader } from "./ChatFlowHeader";
+import { ChatTranscript } from "./ChatTranscript";
+import {
+  buildPriceExtrasLiveMessages,
+  buildPriceProgressMessages,
+  buildPriceThreadAppend,
+  formatItemWorthDisplay,
+  itemWorthLabelFromThread,
+  NOTIFY_USER_DISPLAY,
+  receiverFirstNameFromThread,
+  priceDeliveryUserLine,
+  resolvePriceDeliveryChoice,
+  SIGNATURE_USER_DISPLAY,
+  PARCELPOINT_LOCATION_OPTIONS,
+  parcelPointDetailForReceiver,
+  parcelPointLocationsForSuburbQuery,
+  parcelPointSuburbAreaLabel,
+  priceParcelPointPickBot,
+  priceParcelPointSuburbSearchBot,
+  receiverAddressHintFromThread,
+  type ChatMessage,
+  type ParcelPointLocationOption,
+  type PriceDeliveryChoice,
+} from "./chatThread";
+import { ParcelPointPickMapScreen } from "./ParcelPointPickMapScreen";
 
 const PGO_ORANGE = "#C44717";
-const PGO_NAVY = "#0B1B32";
 
-type PricePhase = "delivery" | "extras";
-type DeliveryChoice = "door" | "parcelpoint";
+type PricePhase = "delivery" | "parcelpoint" | "worth" | "extras";
+type ParcelPointPickMode = "default" | "awaitSuburb" | "suburbResults";
+type ExtrasStep = "signature" | "notify";
+type DeliveryChoice = PriceDeliveryChoice;
 type SignatureChoice = "yes" | "no";
-type NotifyChoice = "text" | "email" | "none";
+type NotifyChoice = "yes" | "no";
 
-function UserBubble({ children }: { children: ReactNode }) {
-  return (
-    <div className="flex justify-end">
-      <div className="max-w-[88%] rounded-[1.25rem] rounded-br-md bg-[#0B1B32] px-4 py-2.5 text-[15px] leading-snug text-white">
-        {children}
-      </div>
-    </div>
-  );
-}
+const SIGNATURE_INPUT_LINES = {
+  yes: "Yes, signature required · +$3.00",
+  no: "No, leave it in a safe place · $0.00",
+} as const;
 
-function BotBubble({ children }: { children: ReactNode }) {
-  return (
-    <div className="flex justify-start">
-      <div className="max-w-[92%] rounded-[1.25rem] rounded-bl-md bg-white px-4 py-2.5 text-[15px] leading-snug text-[#0B1B32] shadow-sm">
-        {children}
-      </div>
-    </div>
-  );
-}
+const NOTIFY_INPUT_LINES = {
+  yes: "Yes",
+  no: "No",
+} as const;
 
 function CheckCircle() {
   return (
@@ -101,66 +116,348 @@ function MapPinIcon() {
   );
 }
 
-function SectionOption({
-  selected,
-  onClick,
-  title,
-  detail,
-  price,
-}: {
-  selected: boolean;
-  onClick: () => void;
-  title: string;
-  detail?: string;
-  price?: string;
-}) {
+function BotBubble({ children }: { children: ReactNode }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex flex-1 flex-col items-start rounded-xl border px-3.5 py-3 text-left transition ${
-        selected
-          ? "border-[#C44717] bg-[#FFF8F4]"
-          : "border-neutral-200 bg-white"
-      }`}
-    >
-      <span className="text-[15px] font-bold text-[#0B1B32]">{title}</span>
-      {detail ? (
-        <span className="mt-0.5 text-xs text-neutral-500">{detail}</span>
-      ) : null}
-      {price ? (
-        <span className="mt-1 text-sm font-semibold text-[#0B1B32]">{price}</span>
-      ) : null}
-    </button>
+    <div className="flex justify-start">
+      <div className="max-w-[92%] rounded-[1.25rem] rounded-bl-md bg-white px-4 py-2.5 text-[15px] leading-snug text-[#0B1B32] shadow-sm">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function UserBubble({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex justify-end">
+      <div className="max-w-[88%] rounded-[1.25rem] rounded-br-md bg-[#0B1B32] px-4 py-2.5 text-[15px] font-bold leading-snug text-white">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function LocationPinIcon({ active }: { active?: boolean }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 21s7-4.5 7-11a7 7 0 10-14 0c0 6.5 7 11 7 11z"
+        stroke={active ? PGO_ORANGE : "#9CA3AF"}
+        strokeWidth="1.75"
+      />
+      <circle
+        cx="12"
+        cy="10"
+        r="2.5"
+        fill={active ? PGO_ORANGE : "transparent"}
+        stroke={active ? PGO_ORANGE : "#9CA3AF"}
+        strokeWidth="1.75"
+      />
+    </svg>
+  );
+}
+
+function RadioMark({ selected }: { selected: boolean }) {
+  if (selected) {
+    return (
+      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 border-[#C44717]">
+        <span className="h-2.5 w-2.5 rounded-full bg-[#C44717]" />
+      </span>
+    );
+  }
+  return (
+    <span className="h-5 w-5 shrink-0 rounded-full border-2 border-neutral-300" />
   );
 }
 
 interface Props {
   onBack: () => void;
-  onContinue?: () => void;
+  priorThread?: ChatMessage[];
+  onContinue?: (append?: ChatMessage[]) => void;
 }
 
-export function ChatPriceScreen({ onBack, onContinue }: Props) {
+export function ChatPriceScreen({
+  onBack,
+  priorThread = [],
+  onContinue,
+}: Props) {
   const [phase, setPhase] = useState<PricePhase>("delivery");
   const [input, setInput] = useState("");
-  const [delivery, setDelivery] = useState<DeliveryChoice>("door");
-  const [signature, setSignature] = useState<SignatureChoice>("yes");
-  const [notify, setNotify] = useState<NotifyChoice>("text");
+  const [delivery, setDelivery] = useState<DeliveryChoice | null>(null);
+  const [committedDeliveryLine, setCommittedDeliveryLine] = useState("");
+  const [committedWorthLine, setCommittedWorthLine] = useState("");
+  const [extrasStep, setExtrasStep] = useState<ExtrasStep>("signature");
+  const [signature, setSignature] = useState<SignatureChoice | null>(null);
+  const [committedSignatureLine, setCommittedSignatureLine] = useState("");
+  const [notify, setNotify] = useState<NotifyChoice | null>(null);
+  const [selectedParcelPointId, setSelectedParcelPointId] = useState(
+    PARCELPOINT_LOCATION_OPTIONS[0].id,
+  );
+  const [parcelPointMapOpen, setParcelPointMapOpen] = useState(false);
+  const [parcelPointPickMode, setParcelPointPickMode] =
+    useState<ParcelPointPickMode>("default");
+  const [suburbUserLine, setSuburbUserLine] = useState("");
+  const [suburbAreaLabel, setSuburbAreaLabel] = useState("");
 
   const handleHeaderBack = () => {
-    if (phase === "extras") setPhase("delivery");
-    else onBack();
+    if (phase === "extras") {
+      if (extrasStep === "notify" && delivery !== "parcelpoint") {
+        setExtrasStep("signature");
+      } else {
+        setPhase("worth");
+      }
+    } else if (phase === "worth") {
+      setPhase(delivery === "parcelpoint" ? "parcelpoint" : "delivery");
+    } else if (phase === "parcelpoint") {
+      setParcelPointPickMode("default");
+      setSuburbUserLine("");
+      setSuburbAreaLabel("");
+      setPhase("delivery");
+    } else onBack();
   };
 
-  const confirmDelivery = () => {
+  const selectDelivery = (choice: DeliveryChoice) => {
+    setDelivery(choice);
+    setInput(priceDeliveryUserLine(choice));
+  };
+
+  const submitDelivery = () => {
+    const trimmed = input.trim();
+    if (!trimmed) return;
+    const choice = resolvePriceDeliveryChoice(trimmed, delivery);
+    if (!choice) return;
+    setDelivery(choice);
+    setCommittedDeliveryLine(priceDeliveryUserLine(choice));
+    setInput("");
+    if (choice === "parcelpoint") {
+      setPhase("parcelpoint");
+      setParcelPointPickMode("default");
+      setSuburbUserLine("");
+      setSuburbAreaLabel("");
+      setSelectedParcelPointId(PARCELPOINT_LOCATION_OPTIONS[0].id);
+      setInput("");
+    } else {
+      setPhase("worth");
+    }
+  };
+
+  const activeParcelPointLocations = useMemo((): ParcelPointLocationOption[] => {
+    if (parcelPointPickMode === "suburbResults") {
+      return parcelPointLocationsForSuburbQuery(suburbUserLine);
+    }
+    return PARCELPOINT_LOCATION_OPTIONS;
+  }, [parcelPointPickMode, suburbUserLine]);
+
+  const submitParcelPointPick = () => {
+    const trimmed = input.trim();
+    if (parcelPointPickMode === "awaitSuburb") {
+      if (!trimmed) return;
+      const locations = parcelPointLocationsForSuburbQuery(trimmed);
+      setSuburbUserLine(trimmed);
+      setSuburbAreaLabel(parcelPointSuburbAreaLabel(trimmed));
+      setParcelPointPickMode("suburbResults");
+      setSelectedParcelPointId(locations[0]?.id ?? selectedParcelPointId);
+      setInput(locations[0]?.name ?? "");
+      return;
+    }
+    if (!selectedParcelPointId) return;
+    setInput("");
+    setPhase("worth");
+  };
+
+  const selectParcelPoint = (id: string, locations = activeParcelPointLocations) => {
+    setSelectedParcelPointId(id);
+    const location = locations.find((entry) => entry.id === id);
+    if (location) setInput(location.name);
+  };
+
+  const startSuburbSearch = () => {
+    setParcelPointPickMode("awaitSuburb");
+    setSuburbUserLine("");
+    setSuburbAreaLabel("");
+    setInput("");
+  };
+
+  const submitWorth = () => {
+    const trimmed = input.trim();
+    if (!trimmed) return;
+    setCommittedWorthLine(trimmed);
+    setInput("");
+    setExtrasStep(delivery === "parcelpoint" ? "notify" : "signature");
     setPhase("extras");
   };
 
-  const userDeliveryLine =
-    delivery === "door" ? "Her door please." : "ParcelPoint near her please.";
+  const selectSignature = (choice: SignatureChoice) => {
+    setSignature(choice);
+    setInput(SIGNATURE_INPUT_LINES[choice]);
+  };
+
+  const selectNotify = (choice: NotifyChoice) => {
+    setNotify(choice);
+    setInput(NOTIFY_INPUT_LINES[choice]);
+  };
+
+  const submitSignatureStep = () => {
+    const trimmed = input.trim();
+    if (!trimmed) return;
+    let choice = signature;
+    if (
+      trimmed === SIGNATURE_INPUT_LINES.yes ||
+      /signature required/i.test(trimmed)
+    ) {
+      choice = "yes";
+    } else if (
+      trimmed === SIGNATURE_INPUT_LINES.no ||
+      /safe place|authority to leave/i.test(trimmed)
+    ) {
+      choice = "no";
+    }
+    if (!choice) return;
+    setSignature(choice);
+    setCommittedSignatureLine(SIGNATURE_USER_DISPLAY[choice]);
+    setInput("");
+    setExtrasStep("notify");
+  };
+
+  const submitExtras = () => {
+    const trimmed = input.trim();
+    if (!trimmed) return;
+    let notifyChoice = notify;
+    if (trimmed === NOTIFY_INPUT_LINES.yes || /^yes\b/i.test(trimmed)) {
+      notifyChoice = "yes";
+    } else if (
+      trimmed === NOTIFY_INPUT_LINES.no ||
+      /^no\b/i.test(trimmed)
+    ) {
+      notifyChoice = "no";
+    }
+    if (!notifyChoice) return;
+    setNotify(notifyChoice);
+    const deliveryLine =
+      committedDeliveryLine || priceDeliveryUserLine("door");
+    const worthLine = committedWorthLine || "$180";
+    setInput("");
+    onContinue?.(
+      buildPriceThreadAppend({
+        deliveryUserLine: deliveryLine,
+        deliveryChoice: delivery ?? "door",
+        itemWorthLine: worthLine,
+        itemWorthLabel,
+        signatureChoice: signature ?? undefined,
+        signatureUserLine: committedSignatureLine || undefined,
+        notifyUserLine: NOTIFY_USER_DISPLAY[notifyChoice],
+        receiverFirstName,
+      }),
+    );
+  };
+
+  const deliveryUserLine =
+    committedDeliveryLine || priceDeliveryUserLine("door");
+
+  const itemWorthLabel = useMemo(
+    () => itemWorthLabelFromThread(priorThread),
+    [priorThread],
+  );
+
+  const receiverFirstName = useMemo(
+    () => receiverFirstNameFromThread(priorThread),
+    [priorThread],
+  );
+
+  const receiverAddressHint = useMemo(
+    () => receiverAddressHintFromThread(priorThread),
+    [priorThread],
+  );
+
+  const itemWorthDisplay = formatItemWorthDisplay(
+    committedWorthLine || "$180",
+  );
+
+  const transcriptMessages = useMemo(() => {
+    const base = [
+      ...priorThread,
+      ...buildPriceProgressMessages(
+        phase === "parcelpoint" ? "parcelpoint" : phase,
+        {
+        deliveryUserLine:
+          phase === "worth" || phase === "extras" || phase === "parcelpoint"
+            ? deliveryUserLine
+            : undefined,
+        deliveryChoice: delivery,
+        itemWorthLine:
+          phase === "extras" ? committedWorthLine : undefined,
+        itemWorthLabel,
+      },
+      ),
+    ];
+    if (phase !== "extras") return base;
+    return [
+      ...base,
+      ...buildPriceExtrasLiveMessages({
+        extrasStep: extrasStep,
+        deliveryChoice: delivery,
+        signatureChoice: signature,
+        signatureUserLine: committedSignatureLine,
+        receiverFirstName,
+      }),
+    ];
+  }, [
+    priorThread,
+    phase,
+    deliveryUserLine,
+    delivery,
+    committedWorthLine,
+    itemWorthLabel,
+    extrasStep,
+    signature,
+    committedSignatureLine,
+    receiverFirstName,
+  ]);
+
+  const mapSearchLabel =
+    parcelPointPickMode === "suburbResults" && suburbAreaLabel
+      ? `Near ${suburbAreaLabel.replace(/\s+QLD\s+\d{4}$/i, ", Brisbane")}`
+      : receiverAddressHint.includes("Paddington")
+        ? "Near Paddington, Brisbane"
+        : `Near ${receiverAddressHint.split(",").pop()?.trim() ?? "Paddington, Brisbane"}`;
+
+  const renderParcelPointLocationList = (
+    locations: ParcelPointLocationOption[],
+  ) => (
+    <div className="flex flex-col gap-2.5">
+      {locations.map((location) => {
+        const selected = selectedParcelPointId === location.id;
+        return (
+          <button
+            key={location.id}
+            type="button"
+            onClick={() => selectParcelPoint(location.id, locations)}
+            className={`flex w-full items-center gap-3 rounded-2xl border p-4 text-left transition ${
+              selected
+                ? "border-2 border-[#C44717] bg-[#FFF8F4]"
+                : "border border-neutral-200 bg-white"
+            }`}
+          >
+            <LocationPinIcon active={selected} />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[15px] font-bold text-[#0B1B32]">
+                {location.name}
+              </span>
+              <span className="mt-0.5 block text-sm text-neutral-500">
+                {parcelPointDetailForReceiver(
+                  location.detail,
+                  receiverFirstName,
+                )}
+              </span>
+            </span>
+            {selected ? <CheckCircle /> : <RadioMark selected={false} />}
+          </button>
+        );
+      })}
+    </div>
+  );
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[#F7F8FA]">
+    <div className="relative flex h-full min-h-0 flex-col bg-[#F7F8FA]">
       <ChatFlowHeader
         activeStep="Price"
         onBack={handleHeaderBack}
@@ -169,17 +466,81 @@ export function ChatPriceScreen({ onBack, onContinue }: Props) {
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
         <div className="mx-auto flex max-w-lg flex-col gap-3">
-          {phase === "delivery" ? (
+          <ChatTranscript messages={transcriptMessages} />
+          {phase === "worth" ? null : phase === "parcelpoint" ? (
             <>
-              <BotBubble>
-                A Medium is a flat rate anywhere in Australia. To her door, or to
-                a ParcelPoint near her to collect?
-              </BotBubble>
-
+              {parcelPointPickMode === "default" ? (
+                <>
+                  <BotBubble>
+                    {priceParcelPointPickBot(receiverAddressHint)}
+                  </BotBubble>
+                  {renderParcelPointLocationList(PARCELPOINT_LOCATION_OPTIONS)}
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setParcelPointMapOpen(true)}
+                      className="rounded-full border border-[#C44717] bg-white py-3 text-[14px] font-bold text-[#C44717]"
+                    >
+                      Show on map
+                    </button>
+                    <button
+                      type="button"
+                      onClick={startSuburbSearch}
+                      className="rounded-full border border-[#C44717] bg-white py-3 text-[14px] font-bold text-[#C44717]"
+                    >
+                      Search another suburb
+                    </button>
+                  </div>
+                  <p className="text-center text-xs leading-snug text-neutral-500">
+                    Same price — $9.95 — whichever you choose. We&apos;ll text{" "}
+                    {receiverFirstName} when it&apos;s ready to collect.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <UserBubble>Search another suburb</UserBubble>
+                  <BotBubble>
+                    {priceParcelPointSuburbSearchBot(receiverFirstName)}
+                  </BotBubble>
+                  {parcelPointPickMode === "suburbResults" ? (
+                    <>
+                      <UserBubble>{suburbUserLine}</UserBubble>
+                      <BotBubble>
+                        Here&apos;s what&apos;s near{" "}
+                        <span className="font-bold">{suburbAreaLabel}</span>:
+                      </BotBubble>
+                      {renderParcelPointLocationList(activeParcelPointLocations)}
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => setParcelPointMapOpen(true)}
+                          className="rounded-full border border-[#C44717] bg-white py-3 text-[14px] font-bold text-[#C44717]"
+                        >
+                          Show on map
+                        </button>
+                        <button
+                          type="button"
+                          onClick={startSuburbSearch}
+                          className="rounded-full border border-[#C44717] bg-white py-3 text-[14px] font-bold text-[#C44717]"
+                        >
+                          Try another suburb
+                        </button>
+                      </div>
+                      <p className="text-center text-xs leading-snug text-neutral-500">
+                        Same price — $9.95 — whichever you choose. We&apos;ll text{" "}
+                        {receiverFirstName} when it&apos;s ready to collect.
+                      </p>
+                    </>
+                  ) : null}
+                </>
+              )}
+            </>
+          ) : phase === "delivery" ? (
+            <>
               <div className="flex flex-col gap-2.5">
                 <button
                   type="button"
-                  onClick={() => setDelivery("door")}
+                  onClick={() => selectDelivery("door")}
                   className={`w-full rounded-2xl border p-4 text-left transition ${
                     delivery === "door"
                       ? "border-2 border-[#C44717] bg-[#FFF8F4]"
@@ -201,26 +562,22 @@ export function ChatPriceScreen({ onBack, onContinue }: Props) {
                     </span>
                     {delivery === "door" ? <CheckCircle /> : null}
                   </div>
-                  {delivery === "door" ? (
-                    <>
-                      <p className="mt-3 rounded-xl bg-[#E8F0FA] px-3 py-2.5 text-[13px] leading-snug text-[#0B1B32]">
-                        🏠 Straight to door · ATL or signature on delivery
-                        available
-                      </p>
-                      <div className="mt-3 flex flex-col gap-1 border-t border-neutral-200/80 pt-3 text-[12px] leading-snug text-neutral-600 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-                        <span>18 Latrobe Tce, Paddington QLD 4064</span>
-                        <span className="text-[#0B1B32]">
-                          Delivered by{" "}
-                          <span className="font-bold">Mon, 9 Nov</span>
-                        </span>
-                      </div>
-                    </>
-                  ) : null}
+                  <p className="mt-3 rounded-xl bg-[#E8F0FA] px-3 py-2.5 text-[13px] leading-snug text-[#0B1B32]">
+                    🏠 Straight to door · ATL or signature on delivery
+                    available
+                  </p>
+                  <div className="mt-3 flex flex-col gap-1 border-t border-neutral-200/80 pt-3 text-[12px] leading-snug text-neutral-600 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                    <span>18 Latrobe Tce, Paddington QLD 4064</span>
+                    <span className="text-[#0B1B32]">
+                      Delivered by{" "}
+                      <span className="font-bold">Mon, 9 Nov</span>
+                    </span>
+                  </div>
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => setDelivery("parcelpoint")}
+                  onClick={() => selectDelivery("parcelpoint")}
                   className={`w-full rounded-2xl border p-4 text-left transition ${
                     delivery === "parcelpoint"
                       ? "border-2 border-[#C44717] bg-[#FFF8F4]"
@@ -250,125 +607,171 @@ export function ChatPriceScreen({ onBack, onContinue }: Props) {
                 </button>
               </div>
             </>
-          ) : (
+          ) : phase === "extras" ? (
             <>
-              <UserBubble>{userDeliveryLine}</UserBubble>
-              <BotBubble>
-                Because the shoes are worth $180, they&apos;ll need Parcel
-                Protection — <span className="font-bold">$4.95</span>.
-              </BotBubble>
-
-              <div className="flex items-center gap-3 rounded-2xl border-2 border-[#2D7A4D]/40 bg-[#F4FBF6] px-4 py-3.5">
-                <ShieldIcon />
-                <div className="min-w-0 flex-1">
-                  <p className="text-[15px] font-bold text-[#0B1B32]">
-                    Parcel Protection · $180 cover
-                  </p>
-                  <p className="mt-0.5 text-sm text-neutral-600">
-                    Required for items over $100
-                  </p>
+              {extrasStep === "signature" ? (
+                <div className="flex items-center gap-3 rounded-2xl border-2 border-[#2D7A4D]/40 bg-[#F4FBF6] px-4 py-3.5">
+                  <ShieldIcon />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[15px] font-bold text-[#0B1B32]">
+                      Parcel Protection · {itemWorthDisplay} declared
+                    </p>
+                    <p className="mt-0.5 text-sm text-neutral-600">
+                      Required for items over $100
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-[15px] font-bold text-[#0B1B32]">
+                    $4.95
+                  </span>
                 </div>
-                <span className="shrink-0 text-[15px] font-bold text-[#0B1B32]">
-                  $4.95
-                </span>
-              </div>
+              ) : null}
 
-              <div>
-                <p className="mb-2 text-[13px] font-semibold text-[#0B1B32]">
-                  Signature on Delivery?
-                </p>
-                <div className="flex gap-2.5">
-                  <SectionOption
-                    selected={signature === "yes"}
-                    onClick={() => setSignature("yes")}
-                    title="Yes"
-                    price="+$3.00"
-                  />
-                  <SectionOption
-                    selected={signature === "no"}
-                    onClick={() => setSignature("no")}
-                    title="No"
-                    detail="Leave safely"
-                  />
-                </div>
-              </div>
+              {extrasStep === "signature" && delivery !== "parcelpoint" ? (
+                <>
+                  <div className="flex flex-col gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => selectSignature("yes")}
+                      className={`flex w-full items-center gap-3 rounded-2xl border p-4 text-left transition ${
+                        signature === "yes"
+                          ? "border-2 border-[#C44717] bg-[#FFF8F4]"
+                          : "border border-neutral-200 bg-white"
+                      }`}
+                    >
+                      <RadioMark selected={signature === "yes"} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[15px] font-bold text-[#0B1B32]">
+                          Yes, signature required
+                        </span>
+                        <span className="mt-0.5 block text-sm text-neutral-500">
+                          {receiverFirstName} signs on delivery
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-[15px] font-bold text-[#0B1B32]">
+                        +$3.00
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => selectSignature("no")}
+                      className={`flex w-full items-center gap-3 rounded-2xl border p-4 text-left transition ${
+                        signature === "no"
+                          ? "border-2 border-[#C44717] bg-[#FFF8F4]"
+                          : "border border-neutral-200 bg-white"
+                      }`}
+                    >
+                      <RadioMark selected={signature === "no"} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[15px] font-bold text-[#0B1B32]">
+                          No, leave it in a safe place
+                        </span>
+                        <span className="mt-0.5 block text-sm text-neutral-500">
+                          Authority to leave
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-[15px] font-bold text-[#0B1B32]">
+                        $0.00
+                      </span>
+                    </button>
+                  </div>
+                </>
+              ) : null}
 
-              <div>
-                <p className="mb-2 text-[13px] font-semibold text-[#0B1B32]">
-                  Let Margaret know it&apos;s coming?
-                </p>
-                <div className="flex gap-2">
-                  <SectionOption
-                    selected={notify === "text"}
-                    onClick={() => setNotify("text")}
-                    title="Text"
-                    detail="Free"
-                  />
-                  <SectionOption
-                    selected={notify === "email"}
-                    onClick={() => setNotify("email")}
-                    title="Email"
-                    detail="Free"
-                  />
-                  <SectionOption
-                    selected={notify === "none"}
-                    onClick={() => setNotify("none")}
-                    title="No thanks"
-                  />
+              {extrasStep === "notify" ? (
+                <div className="flex flex-col gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => selectNotify("yes")}
+                    className={`flex w-full items-center gap-3 rounded-2xl border p-4 text-left transition ${
+                      notify === "yes"
+                        ? "border-2 border-[#C44717] bg-[#FFF8F4]"
+                        : "border border-neutral-200 bg-white"
+                    }`}
+                  >
+                    <RadioMark selected={notify === "yes"} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[15px] font-bold text-[#0B1B32]">
+                        Yes
+                      </span>
+                      <span className="mt-0.5 block text-sm text-neutral-500">
+                        Updates by text and email
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-[15px] font-bold text-[#0B1B32]">
+                      Free
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => selectNotify("no")}
+                    className={`flex w-full items-center gap-3 rounded-2xl border p-4 text-left transition ${
+                      notify === "no"
+                        ? "border-2 border-[#C44717] bg-[#FFF8F4]"
+                        : "border border-neutral-200 bg-white"
+                    }`}
+                  >
+                    <RadioMark selected={notify === "no"} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[15px] font-bold text-[#0B1B32]">
+                        No
+                      </span>
+                      <span className="mt-0.5 block text-sm text-neutral-500">
+                        {receiverFirstName} won&apos;t get updates from us
+                      </span>
+                    </span>
+                  </button>
                 </div>
-              </div>
+              ) : null}
             </>
-          )}
+          ) : null}
         </div>
       </div>
 
-      <footer className="shrink-0 border-t border-neutral-200/80 bg-white px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-5">
-        <button
-          type="button"
-          onClick={() =>
-            phase === "delivery" ? confirmDelivery() : onContinue?.()
-          }
-          className="mb-2.5 w-full rounded-full py-3.5 text-base font-bold text-white transition active:scale-[0.99]"
-          style={{ backgroundColor: PGO_NAVY }}
-        >
-          Continue
-        </button>
-        <div className="flex items-center gap-2.5">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={
-              phase === "delivery"
-                ? 'e.g. "her door please"'
-                : 'e.g. "her door, with cover"'
-            }
-            aria-label="Message"
-            className="min-w-0 flex-1 rounded-full bg-[#ECEEF2] px-5 py-3.5 text-[15px] text-[#0B1B32] outline-none placeholder:text-[#9CA3AF]"
-          />
-          <button
-            type="button"
-            aria-label="Voice input"
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-white"
-            style={{ backgroundColor: PGO_ORANGE }}
-          >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
-            >
-              <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3z" />
-              <path d="M19 11a7 7 0 0 1-14 0M12 18v3" />
-            </svg>
-          </button>
-        </div>
-      </footer>
+      <ChatFlowFooter
+        input={input}
+        onInputChange={setInput}
+        placeholder={
+          phase === "delivery"
+            ? priceDeliveryUserLine("door")
+            : phase === "parcelpoint"
+              ? parcelPointPickMode === "awaitSuburb"
+                ? "Suburb or postcode..."
+                : activeParcelPointLocations[0]?.name ?? ""
+              : phase === "worth"
+                ? "$180"
+                : phase === "extras" && extrasStep === "signature"
+                  ? SIGNATURE_INPUT_LINES.yes
+                  : phase === "extras"
+                    ? NOTIFY_INPUT_LINES.yes
+                    : "Type or tap the mic..."
+        }
+        onSubmitMessage={
+          phase === "delivery"
+            ? submitDelivery
+            : phase === "parcelpoint"
+              ? submitParcelPointPick
+              : phase === "worth"
+                ? submitWorth
+                : phase === "extras" && extrasStep === "signature"
+                  ? submitSignatureStep
+                  : submitExtras
+        }
+        accentOrange={PGO_ORANGE}
+      />
+
+      {parcelPointMapOpen && phase === "parcelpoint" ? (
+        <ParcelPointPickMapScreen
+          selectedId={selectedParcelPointId}
+          locations={activeParcelPointLocations}
+          searchLabel={mapSearchLabel}
+          receiverFirstName={receiverFirstName}
+          onBack={() => setParcelPointMapOpen(false)}
+          onCollectFromHere={(locationId) => {
+            selectParcelPoint(locationId, activeParcelPointLocations);
+            setParcelPointMapOpen(false);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

@@ -1,12 +1,15 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
+import {
+  buildBookingSummaryFromThread,
+  type ChatMessage,
+} from "./chatThread";
 import { ChatFlowHeader } from "./ChatFlowHeader";
-import { PaymentMethodSheet } from "./PaymentMethodSheet";
+import { ChatTranscript } from "./ChatTranscript";
 
 const PGO_ORANGE = "#C44717";
 const PGO_NAVY = "#0B1B32";
-const TOTAL = "$24.90";
 
 function BotBubble({ children }: { children: ReactNode }) {
   return (
@@ -54,12 +57,16 @@ function LockIcon() {
   );
 }
 
+export type BookingSummarySection = "from" | "to" | "parcel" | "delivery";
+
 function SummaryRow({
   label,
   value,
+  onEdit,
 }: {
   label: string;
   value: string;
+  onEdit?: () => void;
 }) {
   return (
     <div className="flex items-start gap-2 border-b border-neutral-100 py-3 last:border-0">
@@ -72,6 +79,7 @@ function SummaryRow({
       <button
         type="button"
         aria-label={`Edit ${label}`}
+        onClick={onEdit}
         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-neutral-400 transition hover:bg-neutral-50 hover:text-neutral-600"
       >
         <PencilIcon />
@@ -80,29 +88,11 @@ function SummaryRow({
   );
 }
 
-function PriceLine({
-  label,
-  amount,
-  muted,
-}: {
-  label: string;
-  amount: string;
-  muted?: boolean;
-}) {
+function PriceLine({ label, amount }: { label: string; amount: string }) {
   return (
-    <div className="flex items-start justify-between gap-3 py-2">
-      <span
-        className={`text-[14px] leading-snug ${
-          muted ? "text-neutral-500" : "text-[#0B1B32]"
-        }`}
-      >
-        {label}
-      </span>
-      <span
-        className={`shrink-0 text-[14px] ${
-          muted ? "text-neutral-500" : "text-[#0B1B32]"
-        }`}
-      >
+    <div className="flex items-center justify-between gap-3 py-2.5">
+      <span className="text-[15px] leading-snug text-neutral-600">{label}</span>
+      <span className="shrink-0 text-[15px] font-bold text-[#0B1B32]">
         {amount}
       </span>
     </div>
@@ -111,17 +101,22 @@ function PriceLine({
 
 interface Props {
   onBack: () => void;
-  onBooked?: () => void;
-  onBookedInStore?: () => void;
+  onContinueToPayment?: () => void;
+  priorThread?: ChatMessage[];
+  onEditSection?: (section: BookingSummarySection) => void;
 }
 
 export function ChatBookingReviewScreen({
   onBack,
-  onBooked,
-  onBookedInStore,
+  onContinueToPayment,
+  priorThread = [],
+  onEditSection,
 }: Props) {
   const [coupon, setCoupon] = useState("");
-  const [paymentOpen, setPaymentOpen] = useState(false);
+  const summary = useMemo(
+    () => buildBookingSummaryFromThread(priorThread),
+    [priorThread],
+  );
 
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-[#F7F8FA]">
@@ -133,6 +128,7 @@ export function ChatBookingReviewScreen({
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
         <div className="mx-auto flex max-w-lg flex-col gap-3">
+          <ChatTranscript messages={priorThread} />
           <BotBubble>
             Here&apos;s everything. Tap any line — or just tell me — to change
             it.
@@ -141,41 +137,37 @@ export function ChatBookingReviewScreen({
           <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white px-4 shadow-sm">
             <SummaryRow
               label="From"
-              value="Sam Perera · 0423 556 789"
+              value={summary.fromLine}
+              onEdit={() => onEditSection?.("from")}
             />
             <SummaryRow
               label="To"
-              value="Margaret Fernando · door, Paddington QLD"
+              value={summary.toLine}
+              onEdit={() => onEditSection?.("to")}
             />
             <SummaryRow
               label="Parcel"
-              value="Medium · running shoes · $180"
+              value={summary.parcelLine}
+              onEdit={() => onEditSection?.("parcel")}
             />
             <SummaryRow
               label="Delivery"
-              value="ParcelPoint → Door · arrives 2–4 business days"
+              value={summary.deliveryLine}
+              onEdit={() => onEditSection?.("delivery")}
             />
           </div>
 
-          <div className="rounded-2xl border border-neutral-200 bg-white px-4 py-3 shadow-sm">
-            <PriceLine
-              label="ParcelPoint → Door delivery"
-              amount="$14.95"
-            />
-            <PriceLine label="Packaging (Medium box)" amount="$2.00" />
-            <PriceLine label="Parcel Protection ($180)" amount="$4.95" />
-            <PriceLine label="Signature on delivery" amount="$3.00" />
-            <PriceLine
-              label="Text updates to Margaret"
-              amount="Free"
-              muted
-            />
-            <div className="mt-2 flex items-center justify-between border-t border-neutral-200 pt-3">
-              <span className="text-[15px] font-bold text-[#0B1B32]">
-                Total incl. GST
-              </span>
-              <span className="text-[15px] font-bold text-[#0B1B32]">
-                {TOTAL}
+          <div className="rounded-2xl border border-neutral-200 bg-white px-5 py-4 shadow-sm">
+            <p className="text-[17px] font-bold text-[#0B1B32]">Price Summary</p>
+            <div className="mt-3">
+              {summary.priceLines.map((line) => (
+                <PriceLine key={line.label} label={line.label} amount={line.amount} />
+              ))}
+            </div>
+            <div className="mt-1 flex items-center justify-between border-t border-neutral-200 pt-4">
+              <span className="text-[17px] font-bold text-[#0B1B32]">Total</span>
+              <span className="text-[17px] font-bold text-[#0B1B32]">
+                {summary.total}
               </span>
             </div>
           </div>
@@ -191,7 +183,7 @@ export function ChatBookingReviewScreen({
             />
             <button
               type="button"
-              className="shrink-0 px-2 text-[15px] font-bold text-[#C44717]"
+              className="shrink-0 rounded-full border border-neutral-200 bg-white px-5 py-3 text-[15px] font-bold text-[#0B1B32] transition active:scale-[0.99]"
             >
               Apply
             </button>
@@ -203,12 +195,12 @@ export function ChatBookingReviewScreen({
         <div className="flex items-center gap-2.5">
           <button
             type="button"
-            onClick={() => setPaymentOpen(true)}
+            onClick={() => onContinueToPayment?.()}
             className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full py-3.5 text-[15px] font-bold text-white transition active:scale-[0.99]"
             style={{ backgroundColor: PGO_ORANGE }}
           >
             <LockIcon />
-            Continue to payment · {TOTAL}
+            Continue to payment · {summary.total}
           </button>
           <button
             type="button"
@@ -233,17 +225,6 @@ export function ChatBookingReviewScreen({
           </button>
         </div>
       </footer>
-
-      <PaymentMethodSheet
-        open={paymentOpen}
-        total={TOTAL}
-        onClose={() => setPaymentOpen(false)}
-        onConfirm={(method) => {
-          setPaymentOpen(false);
-          if (method === "card") onBooked?.();
-          else onBookedInStore?.();
-        }}
-      />
     </div>
   );
 }

@@ -114,3 +114,21 @@ body {
     transform: translateY(0);
   }
 }
+
+@keyframes voiceWaveBar {
+  0%,
+  100% {
+    transform: scaleY(0.35);
+    opacity: 0.65;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+.voice-wave-bar {
+  transform-origin: bottom center;
+  animation: voiceWaveBar 0.75s ease-in-out infinite;
+  will-change: transform;
+}
