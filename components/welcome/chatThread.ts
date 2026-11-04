@@ -1080,7 +1080,7 @@ export function buildBookingSummaryFromThread(
   const packagingAmount = /add packaging/i.test(packagingUser) ? 2 : 0;
 
   const worthNum = worthNumberFromThread(messages);
-  const protectionAmount = worthNum >= 100 ? 4.95 : 0;
+  const protectionAmount = worthNum > 0 ? 4.95 : 0;
 
   const signatureUser = threadText(messages, "price-signature-user");
   const signatureAmount =

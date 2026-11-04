@@ -484,6 +484,29 @@ export function ChatPriceScreen({
             messages={transcriptMessages}
             historyCount={priorThread.length}
             onBusyChange={setReplyPending}
+            insertBefore={
+              phase === "extras" && extrasStep === "signature"
+                ? {
+                    id: "price-signature-bot",
+                    node: (
+                      <div className="flex items-center gap-3 rounded-2xl border-2 border-[#2D7A4D]/40 bg-[#F4FBF6] px-4 py-3.5">
+                        <ShieldIcon />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[15px] font-bold text-[#0B1B32]">
+                            Parcel Protection · {itemWorthDisplay} declared
+                          </p>
+                          <p className="mt-0.5 text-sm text-neutral-600">
+                            Required for items over $100
+                          </p>
+                        </div>
+                        <span className="shrink-0 text-[15px] font-bold text-[#0B1B32]">
+                          $4.95
+                        </span>
+                      </div>
+                    ),
+                  }
+                : undefined
+            }
           />
           {replyPending || phase === "worth" ? null : phase === "parcelpoint" ? (
             <>
@@ -639,23 +662,6 @@ export function ChatPriceScreen({
             </>
           ) : phase === "extras" ? (
             <>
-              {extrasStep === "signature" ? (
-                <div className="flex items-center gap-3 rounded-2xl border-2 border-[#2D7A4D]/40 bg-[#F4FBF6] px-4 py-3.5">
-                  <ShieldIcon />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[15px] font-bold text-[#0B1B32]">
-                      Parcel Protection · {itemWorthDisplay} declared
-                    </p>
-                    <p className="mt-0.5 text-sm text-neutral-600">
-                      Required for items over $100
-                    </p>
-                  </div>
-                  <span className="shrink-0 text-[15px] font-bold text-[#0B1B32]">
-                    $4.95
-                  </span>
-                </div>
-              ) : null}
-
               {extrasStep === "signature" && delivery !== "parcelpoint" ? (
                 <>
                   <div className="flex flex-col gap-2.5">

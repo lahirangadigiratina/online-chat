@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Fragment,
   isValidElement,
   useEffect,
   useRef,
@@ -210,12 +211,15 @@ export function ChatTranscript({
   messages,
   historyCount,
   onBusyChange,
+  insertBefore,
 }: {
   messages: ChatMessage[];
   /** Bot messages at this index and after are new replies and type before they appear. */
   historyCount?: number;
   /** True while a new bot reply in this transcript is still waiting or typing. */
   onBusyChange?: (busy: boolean) => void;
+  /** Rendered immediately above the message with this id. */
+  insertBefore?: { id: string; node: ReactNode };
 }) {
   const revealedRef = useRef<Set<string> | null>(null);
   const [tick, setTick] = useState(0);
@@ -290,8 +294,15 @@ export function ChatTranscript({
     <>
       {messages.map((message, index) => {
         if (firstHeldIndex >= 0 && index > firstHeldIndex) return null;
+        const lead =
+          insertBefore?.id === message.id ? insertBefore.node : null;
         if (message.kind === "parcel-photo") {
-          return <ParcelPhotoBubble key={message.id} />;
+          return (
+            <Fragment key={message.id}>
+              {lead}
+              <ParcelPhotoBubble />
+            </Fragment>
+          );
         }
         const messageKey =
           typeof message.id === "string" && message.id
@@ -299,20 +310,33 @@ export function ChatTranscript({
             : `message-${index}`;
         const body = renderableContent(message.content);
         if (message.role === "user") {
-          return <UserBubble key={messageKey}>{body}</UserBubble>;
+          return (
+            <Fragment key={messageKey}>
+              {lead}
+              <UserBubble>{body}</UserBubble>
+            </Fragment>
+          );
         }
         if (!revealedRef.current!.has(message.id)) {
-          if (typingId !== message.id) return null;
+          if (typingId !== message.id) {
+            return lead ? (
+              <Fragment key={`lead-${messageKey}`}>{lead}</Fragment>
+            ) : null;
+          }
           return (
-            <div key={`typing-${messageKey}`} ref={typingRef}>
-              <TypingBubble />
-            </div>
+            <Fragment key={`typing-${messageKey}`}>
+              {lead}
+              <div ref={typingRef}>
+                <TypingBubble />
+              </div>
+            </Fragment>
           );
         }
         return (
-          <BotBubble key={messageKey} bordered={message.bordered}>
-            {body}
-          </BotBubble>
+          <Fragment key={messageKey}>
+            {lead}
+            <BotBubble bordered={message.bordered}>{body}</BotBubble>
+          </Fragment>
         );
       })}
     </>

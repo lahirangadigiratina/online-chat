@@ -87,14 +87,17 @@ export function ChatPayConfirmScreen({
   const [termsStep, setTermsStep] = useState<"pending" | "agreed" | "declined">(
     "pending",
   );
+  const [termsIntroReady, setTermsIntroReady] = useState(false);
   const [declineReady, setDeclineReady] = useState(false);
   const [noDangerousAccepted, setNoDangerousAccepted] = useState(false);
   const [dangerousStep, setDangerousStep] = useState<
     "pending" | "confirmed" | "contains"
   >("pending");
+  const [dangerousIntroReady, setDangerousIntroReady] = useState(false);
   const [marketingStep, setMarketingStep] = useState<
     "pending" | "yes" | "no"
   >("pending");
+  const [marketingIntroReady, setMarketingIntroReady] = useState(false);
 
   const showDangerousStep = termsStep === "agreed";
   const showMarketingStep =
@@ -130,12 +133,12 @@ export function ChatPayConfirmScreen({
       <ChatScrollArea>
         <div className="mx-auto flex max-w-lg flex-col gap-3">
           <ChatTranscript messages={priorThread} />
-          <BotBubble>
+          <BotBubble onReady={() => setTermsIntroReady(true)}>
             Before you pay, a few quick confirmations. First — do you agree to
             our terms?
           </BotBubble>
 
-          {termsStep === "pending" || termsStep === "declined" ? (
+          {termsIntroReady && (termsStep === "pending" || termsStep === "declined") ? (
             <div className="flex w-full items-start gap-3 rounded-2xl border border-neutral-200 bg-white p-4 text-left shadow-sm">
               <CircleMark selected={false} />
               <span className="min-w-0 text-[15px] leading-snug text-[#0B1B32]">
@@ -156,7 +159,7 @@ export function ChatPayConfirmScreen({
                 .
               </span>
             </div>
-          ) : (
+          ) : termsIntroReady ? (
             <div className="flex w-full items-start gap-3 rounded-2xl border-2 border-[#C44717] bg-white p-4 shadow-sm">
               <CircleMark selected />
               <span className="min-w-0 text-[15px] leading-snug text-[#0B1B32]">
@@ -171,9 +174,9 @@ export function ChatPayConfirmScreen({
                 .
               </span>
             </div>
-          )}
+          ) : null}
 
-          {termsStep === "pending" ? (
+          {termsIntroReady && termsStep === "pending" ? (
             <div className="grid grid-cols-2 gap-2.5">
               <button
                 type="button"
@@ -243,12 +246,12 @@ export function ChatPayConfirmScreen({
           {showDangerousStep ? (
             <>
               <UserBubble>✓ I agree</UserBubble>
-              <BotBubble>
+              <BotBubble onReady={() => setDangerousIntroReady(true)}>
                 Thanks! Next — can you confirm there&apos;s nothing dangerous
                 inside?
               </BotBubble>
 
-              {dangerousStep === "pending" ? (
+              {dangerousIntroReady && dangerousStep === "pending" ? (
                 <>
                   <button
                     type="button"
@@ -301,11 +304,11 @@ export function ChatPayConfirmScreen({
                 <>
                   {dangerousGoodsCard(true)}
                   <UserBubble>✓ I confirm</UserBubble>
-                  <BotBubble>
+                  <BotBubble onReady={() => setMarketingIntroReady(true)}>
                     Last one, and it&apos;s optional — would you like marketing
                     and promotional updates from PARCELPOINT?
                   </BotBubble>
-                  {showMarketingStep ? (
+                  {showMarketingStep && marketingIntroReady ? (
                     <div className="grid grid-cols-2 gap-2.5">
                       <button
                         type="button"
