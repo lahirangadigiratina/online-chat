@@ -441,7 +441,18 @@ export function ChatParcelScreen({
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
         <div className="mx-auto flex max-w-lg flex-col gap-3">
-          <ChatTranscript messages={transcriptMessages} />
+          <ChatTranscript
+            messages={transcriptMessages}
+            historyCount={
+              priorThread.findIndex(
+                (message) => message.id === "parcel-great-intro",
+              ) >= 0
+                ? priorThread.findIndex(
+                    (message) => message.id === "parcel-great-intro",
+                  )
+                : priorThread.length
+            }
+          />
 
           {phase === "describe" ? (
             <button

@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { ChatFlowFooter, ChatFlowHeader } from "./ChatFlowHeader";
+import { BotReply } from "./ChatTranscript";
 import { LocationPermissionDialog } from "./LocationPermissionDialog";
 
 interface Props {
@@ -22,9 +23,11 @@ const botBubbleClass =
 
 function BotBubble({ children }: { children: ReactNode }) {
   return (
-    <div className="flex justify-start">
-      <div className={botBubbleClass}>{children}</div>
-    </div>
+    <BotReply>
+      <div className="flex justify-start">
+        <div className={botBubbleClass}>{children}</div>
+      </div>
+    </BotReply>
   );
 }
 
@@ -234,12 +237,10 @@ export function ChatLocationScreen({ onBack, onContinue }: Props) {
 
           {phase === "ask" ? (
             <>
-              <div className="flex justify-start">
-                <div className="max-w-[92%] rounded-[1.25rem] rounded-bl-md bg-white px-4 py-2.5 text-[15px] leading-snug text-[#0B1B32] shadow-sm">
-                  Happy to! To find the ParcelPoints closest to you, can I use
-                  your location? I only use it while you&apos;re booking.
-                </div>
-              </div>
+              <BotBubble>
+                Happy to! To find the ParcelPoints closest to you, can I use
+                your location? I only use it while you&apos;re booking.
+              </BotBubble>
 
               <div className="rounded-2xl border border-neutral-200 bg-white px-5 py-6 text-center shadow-sm">
                 <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#FFEBE3]">
@@ -278,12 +279,9 @@ export function ChatLocationScreen({ onBack, onContinue }: Props) {
                 </div>
               ) : null}
 
-              <div className="flex justify-start">
-                <div className="max-w-[92%] rounded-[1.25rem] rounded-bl-md bg-white px-4 py-2.5 text-[15px] leading-snug text-[#0B1B32] shadow-sm">
-                  No problem at all. Which suburb or postcode should I look
-                  near?
-                </div>
-              </div>
+              <BotBubble>
+                No problem at all. Which suburb or postcode should I look near?
+              </BotBubble>
             </>
           ) : (
             <>

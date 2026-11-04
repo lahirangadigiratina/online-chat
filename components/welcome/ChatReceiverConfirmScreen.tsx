@@ -7,7 +7,7 @@ import {
   type ChatMessage,
   type ParsedReceiverDetails,
 } from "./chatThread";
-import { ChatTranscript } from "./ChatTranscript";
+import { BotReply, ChatTranscript } from "./ChatTranscript";
 
 /** Mock palette for PGo chat screens */
 const PGO_ORANGE = "#C44717";
@@ -110,24 +110,26 @@ function UserBubble({ children }: { children: ReactNode }) {
 
 function BotBubble({
   bordered,
+  immediate,
   children,
 }: {
   bordered?: boolean;
+  immediate?: boolean;
   children: ReactNode;
 }) {
-  return (
+  const bubble = (
     <div className="flex justify-start">
       <div
         className={`max-w-[92%] rounded-[1.25rem] rounded-bl-md bg-white px-4 py-2.5 text-[15px] leading-snug text-[#0B1B32] ${
-          bordered
-            ? "border border-neutral-200 shadow-none"
-            : "shadow-sm"
+          bordered ? "border border-neutral-200 shadow-none" : "shadow-sm"
         }`}
       >
         {children}
       </div>
     </div>
   );
+  if (immediate) return bubble;
+  return <BotReply>{bubble}</BotReply>;
 }
 
 export function ChatReceiverConfirmScreen({
@@ -218,7 +220,7 @@ export function ChatReceiverConfirmScreen({
     setAwaitingReceiverDetails(false);
   };
 
-  const showConfirmedThread = entry !== "welcome" || !awaitingReceiverDetails;
+  const userHasReplied = entry !== "welcome" || !awaitingReceiverDetails;
 
   const receiverPromptInThread = priorThread.some(
     (message) =>
@@ -239,7 +241,22 @@ export function ChatReceiverConfirmScreen({
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
         <div className="mx-auto flex max-w-lg flex-col gap-3">
-          <ChatTranscript messages={priorThread} />
+          <ChatTranscript
+            messages={priorThread}
+            historyCount={
+              priorThread.findIndex(
+                (message) =>
+                  message.id === "welcome-receiver-prompt" ||
+                  message.id === "route-receiver-prompt",
+              ) >= 0
+                ? priorThread.findIndex(
+                    (message) =>
+                      message.id === "welcome-receiver-prompt" ||
+                      message.id === "route-receiver-prompt",
+                  )
+                : priorThread.length
+            }
+          />
           {entry === "welcome" &&
           welcomeInitialMessage &&
           !welcomeUserInThread ? (
@@ -253,20 +270,19 @@ export function ChatReceiverConfirmScreen({
             </BotBubble>
           ) : null}
 
-          {showConfirmedThread ? (
-            <>
-              <UserBubble>
-                {entry === "welcome"
-                  ? receiverReplyMessage
-                  : "It's for my mum, Margaret Fernando, 0412 345 678, 18 Latrobe Terrace, Paddington in Brisbane"}
-              </UserBubble>
-              <BotBubble>
+          {userHasReplied ? (
+            <UserBubble>
+              {entry === "welcome"
+                ? receiverReplyMessage
+                : "It's for my mum, Margaret Fernando, 0412 345 678, 18 Latrobe Terrace, Paddington in Brisbane"}
+            </UserBubble>
+          ) : null}
+          {userHasReplied ? (
+            <BotReply>
+              <BotBubble immediate>
                 Here&apos;s what I&apos;ve got — does it look right?
               </BotBubble>
-            </>
-          ) : null}
-
-          {view === "confirm" && showConfirmedThread && entry === "welcome" ? (
+              {view === "confirm" && entry === "welcome" ? (
                 <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4">
                   <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-neutral-500">
                     To
@@ -316,8 +332,7 @@ export function ChatReceiverConfirmScreen({
                   </div>
                 </div>
               ) : null}
-
-          {view === "confirm" && showConfirmedThread && entry !== "welcome" ? (
+              {view === "confirm" && entry !== "welcome" ? (
                 <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
                   <div className="flex items-start gap-3">
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#ECEEF2] text-sm font-bold text-[#0B1B32]">
@@ -369,6 +384,8 @@ export function ChatReceiverConfirmScreen({
                   </div>
                 </div>
               ) : null}
+            </BotReply>
+          ) : null}
 
           {view === "edit" ? (
             <>

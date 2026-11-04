@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { ChatFlowFooter, ChatFlowHeader } from "./ChatFlowHeader";
-import { ChatTranscript } from "./ChatTranscript";
+import { BotReply, ChatTranscript } from "./ChatTranscript";
 import {
   buildPriceExtrasLiveMessages,
   buildPriceProgressMessages,
@@ -118,11 +118,13 @@ function MapPinIcon() {
 
 function BotBubble({ children }: { children: ReactNode }) {
   return (
-    <div className="flex justify-start">
-      <div className="max-w-[92%] rounded-[1.25rem] rounded-bl-md bg-white px-4 py-2.5 text-[15px] leading-snug text-[#0B1B32] shadow-sm">
-        {children}
+    <BotReply>
+      <div className="flex justify-start">
+        <div className="max-w-[92%] rounded-[1.25rem] rounded-bl-md bg-white px-4 py-2.5 text-[15px] leading-snug text-[#0B1B32] shadow-sm">
+          {children}
+        </div>
       </div>
-    </div>
+    </BotReply>
   );
 }
 
@@ -466,7 +468,10 @@ export function ChatPriceScreen({
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
         <div className="mx-auto flex max-w-lg flex-col gap-3">
-          <ChatTranscript messages={transcriptMessages} />
+          <ChatTranscript
+            messages={transcriptMessages}
+            historyCount={priorThread.length}
+          />
           {phase === "worth" ? null : phase === "parcelpoint" ? (
             <>
               {parcelPointPickMode === "default" ? (

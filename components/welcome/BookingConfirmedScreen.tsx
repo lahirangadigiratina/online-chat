@@ -6,18 +6,20 @@ import {
   type ChatMessage,
 } from "./chatThread";
 import { ChatFlowHeader } from "./ChatFlowHeader";
-import { ChatTranscript } from "./ChatTranscript";
+import { BotReply, ChatTranscript } from "./ChatTranscript";
 
 const PGO_ORANGE = "#C44717";
 const PGO_NAVY = "#0B1B32";
 
 function BotBubble({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex justify-start">
-      <div className="max-w-[92%] rounded-[1.25rem] rounded-bl-md bg-white px-4 py-2.5 text-[15px] leading-snug text-[#0B1B32] shadow-sm">
-        {children}
+    <BotReply>
+      <div className="flex justify-start">
+        <div className="max-w-[92%] rounded-[1.25rem] rounded-bl-md bg-white px-4 py-2.5 text-[15px] leading-snug text-[#0B1B32] shadow-sm">
+          {children}
+        </div>
       </div>
-    </div>
+    </BotReply>
   );
 }
 
