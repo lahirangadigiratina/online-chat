@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { ChatFlowFooter, ChatFlowHeader } from "./ChatFlowHeader";
-import { BotReply, ChatTranscript } from "./ChatTranscript";
+import { BotReply, ChatScrollArea, ChatTranscript } from "./ChatTranscript";
 import {
   buildPriceExtrasLiveMessages,
   buildPriceProgressMessages,
@@ -478,7 +478,7 @@ export function ChatPriceScreen({
         accentOrange={PGO_ORANGE}
       />
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+      <ChatScrollArea>
         <div className="mx-auto flex max-w-lg flex-col gap-3">
           <ChatTranscript
             messages={transcriptMessages}
@@ -755,7 +755,7 @@ export function ChatPriceScreen({
             </>
           ) : null}
         </div>
-      </div>
+      </ChatScrollArea>
 
       <ChatFlowFooter
         input={input}

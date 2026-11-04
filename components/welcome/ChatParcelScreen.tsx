@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { ChatFlowFooter, ChatFlowHeader } from "./ChatFlowHeader";
-import { ChatTranscript } from "./ChatTranscript";
+import { ChatScrollArea, ChatTranscript } from "./ChatTranscript";
 import {
   buildParcelProgressMessages,
   buildParcelThreadAppend,
@@ -453,7 +453,7 @@ export function ChatParcelScreen({
         accentOrange={PGO_ORANGE}
       />
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+      <ChatScrollArea>
         <div className="mx-auto flex max-w-lg flex-col gap-3">
           <ChatTranscript
             messages={transcriptMessages}
@@ -675,7 +675,7 @@ export function ChatParcelScreen({
             </>
           )}
         </div>
-      </div>
+      </ChatScrollArea>
 
       <ChatFlowFooter
         input={input}

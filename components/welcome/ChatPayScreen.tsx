@@ -2,7 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { ChatFlowFooter, ChatFlowHeader } from "./ChatFlowHeader";
-import { BotReply, ChatTranscript } from "./ChatTranscript";
+import { BotReply, ChatScrollArea, ChatTranscript } from "./ChatTranscript";
 import {
   buildPaySenderThreadAppend,
   lookupSenderByMobile,
@@ -235,7 +235,7 @@ export function ChatPayScreen({
     <div className="flex h-full min-h-0 flex-col bg-[#F7F8FA]">
       <ChatFlowHeader activeStep="Pay" onBack={handleHeaderBack} accentOrange={PGO_ORANGE} />
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+      <ChatScrollArea>
         <div className="mx-auto flex max-w-lg flex-col gap-3">
           <ChatTranscript messages={priorThread} />
           {view === "confirm" ? (
@@ -432,7 +432,7 @@ export function ChatPayScreen({
             </>
           )}
         </div>
-      </div>
+      </ChatScrollArea>
 
       <ChatFlowFooter
         input={input}

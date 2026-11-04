@@ -6,7 +6,7 @@ import {
   type ChatMessage,
 } from "./chatThread";
 import { ChatFlowFooter, ChatFlowHeader } from "./ChatFlowHeader";
-import { BotReply, ChatTranscript } from "./ChatTranscript";
+import { BotReply, ChatScrollArea, ChatTranscript } from "./ChatTranscript";
 import { PaymentMethodSheet } from "./PaymentMethodSheet";
 
 const PGO_ORANGE = "#C44717";
@@ -119,7 +119,7 @@ export function ChatPayConfirmScreen({
     <div className="relative flex h-full min-h-0 flex-col bg-[#F7F8FA]">
       <ChatFlowHeader activeStep="Pay" onBack={onBack} accentOrange={PGO_ORANGE} />
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+      <ChatScrollArea>
         <div className="mx-auto flex max-w-lg flex-col gap-3">
           <ChatTranscript messages={priorThread} />
           <BotBubble>
@@ -315,7 +315,7 @@ export function ChatPayConfirmScreen({
             </>
           ) : null}
         </div>
-      </div>
+      </ChatScrollArea>
 
       <ChatFlowFooter
         input={input}

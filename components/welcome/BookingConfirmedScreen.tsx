@@ -6,7 +6,7 @@ import {
   type ChatMessage,
 } from "./chatThread";
 import { ChatFlowHeader } from "./ChatFlowHeader";
-import { ChatTranscript } from "./ChatTranscript";
+import { ChatScrollArea, ChatTranscript } from "./ChatTranscript";
 
 const PGO_ORANGE = "#C44717";
 const PGO_NAVY = "#0B1B32";
@@ -94,7 +94,7 @@ export function BookingConfirmedScreen({
         assistantTaglineClassName="text-neutral-500"
       />
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+      <ChatScrollArea>
         <div className="mx-auto flex max-w-lg flex-col gap-3">
           <ChatTranscript messages={priorThread} />
           <div className="flex justify-center">
@@ -154,7 +154,7 @@ export function BookingConfirmedScreen({
             {details.receiptEmail}.
           </BotBubble>
         </div>
-      </div>
+      </ChatScrollArea>
 
       <footer className="shrink-0 border-t border-neutral-200/80 bg-white px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-5">
         <p className="mb-3 text-center text-xs text-neutral-500">

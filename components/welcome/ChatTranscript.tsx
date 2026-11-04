@@ -69,6 +69,45 @@ function renderableContent(content: ReactNode): ReactNode {
   return null;
 }
 
+export function ChatScrollArea({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+
+    let frame = 0;
+    const pinToLatest = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        node.scrollTop = node.scrollHeight;
+      });
+    };
+
+    pinToLatest();
+    const observer = new MutationObserver(pinToLatest);
+    observer.observe(node, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+    const resize = new ResizeObserver(pinToLatest);
+    if (node.firstElementChild) resize.observe(node.firstElementChild);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer.disconnect();
+      resize.disconnect();
+    };
+  }, []);
+
+  return (
+    <div ref={ref} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+      {children}
+    </div>
+  );
+}
+
 export function TypingBubble() {
   return (
     <div className="flex justify-start" aria-live="polite" aria-label="PGo is typing">
@@ -152,7 +191,7 @@ export function BotReply({
 
   useEffect(() => {
     if (phase === "waiting") return;
-    typingRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    typingRef.current?.scrollIntoView({ block: "end" });
   }, [phase]);
 
   if (phase !== "ready") {
@@ -238,7 +277,7 @@ export function ChatTranscript({
 
   useEffect(() => {
     if (!typingId) return;
-    typingRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    typingRef.current?.scrollIntoView({ block: "end" });
   }, [typingId, tick]);
 
   if (messages.length === 0) return null;

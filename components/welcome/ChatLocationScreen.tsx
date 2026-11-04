@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { ChatFlowFooter, ChatFlowHeader } from "./ChatFlowHeader";
-import { BotReply } from "./ChatTranscript";
+import { BotReply, ChatScrollArea } from "./ChatTranscript";
 import { LocationPermissionDialog } from "./LocationPermissionDialog";
 
 interface Props {
@@ -225,7 +225,7 @@ export function ChatLocationScreen({ onBack, onContinue }: Props) {
         accentOrange={accentOrange}
       />
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+      <ChatScrollArea>
         <div className="mx-auto flex max-w-lg flex-col gap-3">
           {phase !== "locationOff" ? (
             <div className="flex justify-end">
@@ -334,7 +334,7 @@ export function ChatLocationScreen({ onBack, onContinue }: Props) {
             </>
           )}
         </div>
-      </div>
+      </ChatScrollArea>
 
       {phase === "ask" ? (
         <ChatFlowFooter

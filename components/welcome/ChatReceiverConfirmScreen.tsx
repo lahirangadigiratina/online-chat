@@ -7,7 +7,7 @@ import {
   type ChatMessage,
   type ParsedReceiverDetails,
 } from "./chatThread";
-import { BotReply, ChatTranscript } from "./ChatTranscript";
+import { BotReply, ChatScrollArea, ChatTranscript } from "./ChatTranscript";
 
 /** Mock palette for PGo chat screens */
 const PGO_ORANGE = "#C44717";
@@ -24,12 +24,32 @@ interface Props {
   confirmedDetailsMessage?: string;
 }
 
+function addressLines(value: string): { street: string; region: string } | null {
+  const cleaned = value.replace(/^(?:\s*,\s*)+/, "").trim();
+  const match = cleaned.match(
+    /^(.*?)(?:\s+)((?:QLD|NSW|VIC|SA|WA|TAS|ACT|NT)\s+\d{4})\s*$/i,
+  );
+  if (!match) return null;
+  const street = match[1].replace(/[,\s]+$/, "").trim();
+  const region = match[2].replace(/\s+/, " ").toUpperCase();
+  if (!street) return null;
+  return { street, region };
+}
+
 function ToDetailRow({ label, value }: { label: string; value: string }) {
+  const address = label === "Address" ? addressLines(value) : null;
   return (
     <div className="flex items-start justify-between gap-4 py-1.5">
       <span className="shrink-0 text-[15px] text-neutral-500">{label}</span>
       <span className="max-w-[58%] text-right text-[15px] font-bold leading-snug text-[#0B1B32]">
-        {value}
+        {address ? (
+          <>
+            <span className="block">{address.street}</span>
+            <span className="block">{address.region}</span>
+          </>
+        ) : (
+          value
+        )}
       </span>
     </div>
   );
@@ -256,7 +276,7 @@ export function ChatReceiverConfirmScreen({
         accentOrange={PGO_ORANGE}
       />
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+      <ChatScrollArea>
         <div className="mx-auto flex max-w-lg flex-col gap-3">
           <ChatTranscript
             messages={priorThread}
@@ -498,7 +518,7 @@ export function ChatReceiverConfirmScreen({
             </>
           ) : null}
         </div>
-      </div>
+      </ChatScrollArea>
 
       <ChatFlowFooter
         input={input}

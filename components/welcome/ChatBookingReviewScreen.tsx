@@ -6,7 +6,7 @@ import {
   type ChatMessage,
 } from "./chatThread";
 import { ChatFlowHeader } from "./ChatFlowHeader";
-import { BotReply, ChatTranscript } from "./ChatTranscript";
+import { BotReply, ChatScrollArea, ChatTranscript } from "./ChatTranscript";
 
 const PGO_ORANGE = "#C44717";
 const PGO_NAVY = "#0B1B32";
@@ -128,7 +128,7 @@ export function ChatBookingReviewScreen({
         accentOrange={PGO_ORANGE}
       />
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+      <ChatScrollArea>
         <div className="mx-auto flex max-w-lg flex-col gap-3">
           <ChatTranscript messages={priorThread} />
           <BotBubble>
@@ -191,7 +191,7 @@ export function ChatBookingReviewScreen({
             </button>
           </div>
         </div>
-      </div>
+      </ChatScrollArea>
 
       <footer className="shrink-0 border-t border-neutral-200/80 bg-white px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-5">
         <div className="flex items-center gap-2.5">
