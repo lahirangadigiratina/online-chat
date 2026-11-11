@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer utilities {
+  .checkbox-orange {
+    accent-color: #e4571a;
+  }
+}
+
 :root {
   --brand-orange: #e8651a;
   --brand-black: #0a0a0a;
