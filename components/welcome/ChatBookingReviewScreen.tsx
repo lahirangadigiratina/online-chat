@@ -132,8 +132,9 @@ export function ChatBookingReviewScreen({
         <div className="mx-auto flex max-w-lg flex-col gap-3">
           <ChatTranscript messages={priorThread} />
           <BotBubble>
-            Here&apos;s everything. Tap any line — or just tell me — to change
-            it.
+            Here&apos;s a quick summary of your parcel! 😊 You can tap any detail
+            to make changes, or just let me know what you&apos;d like to
+            update.
           </BotBubble>
 
           <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white px-4 shadow-sm">

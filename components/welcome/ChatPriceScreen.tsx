@@ -766,21 +766,6 @@ export function ChatPriceScreen({
       <ChatFlowFooter
         input={input}
         onInputChange={setInput}
-        placeholder={
-          phase === "delivery"
-            ? priceDeliveryUserLine("door")
-            : phase === "parcelpoint"
-              ? parcelPointPickMode === "awaitSuburb"
-                ? "Suburb or postcode..."
-                : activeParcelPointLocations[0]?.name ?? ""
-              : phase === "worth"
-                ? "$180"
-                : phase === "extras" && extrasStep === "signature"
-                  ? SIGNATURE_INPUT_LINES.yes
-                  : phase === "extras"
-                    ? NOTIFY_INPUT_LINES.yes
-                    : "Type or tap the mic..."
-        }
         onSubmitMessage={
           phase === "delivery"
             ? submitDelivery

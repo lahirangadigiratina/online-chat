@@ -23,7 +23,7 @@ async function evalJs(expression) {
 await send("Page.enable");
 await send("Page.navigate", { url: "http://localhost:3002/" });
 await new Promise((r) => setTimeout(r, 1200));
-await evalJs(`(() => { [...document.querySelectorAll("button")].find((n) => (n.innerText||"").includes("Manual form")).click(); })()`);
+await evalJs(`(() => { [...document.querySelectorAll("button")].find((n) => (n.innerText||"").includes("Standard booking form")).click(); })()`);
 await new Promise((r) => setTimeout(r, 200));
 console.log(await evalJs(`(() => {
   const grid = document.querySelector(".grid.grid-cols-4");

@@ -340,7 +340,6 @@ export function ChatLocationScreen({ onBack, onContinue }: Props) {
         <ChatFlowFooter
           input={input}
           onInputChange={setInput}
-          placeholder='Say "yes" or a suburb...'
           accentOrange={accentOrange}
         />
       ) : phase === "suburb" ? (
@@ -355,7 +354,6 @@ export function ChatLocationScreen({ onBack, onContinue }: Props) {
         <ChatFlowFooter
           input={locationOffInput}
           onInputChange={setLocationOffInput}
-          placeholder="Or say a suburb or postcode..."
           accentOrange={accentOrange}
         />
       )}

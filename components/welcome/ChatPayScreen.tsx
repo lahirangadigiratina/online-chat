@@ -437,13 +437,6 @@ export function ChatPayScreen({
       <ChatFlowFooter
         input={input}
         onInputChange={setInput}
-        placeholder={
-          view === "edit"
-            ? "Or tell PGo what to change..."
-            : awaitingSenderDetails
-              ? "Your mobile number..."
-              : "Type or tap the mic..."
-        }
         onSubmitMessage={
           view === "confirm" && awaitingSenderDetails
             ? submitSenderDetails

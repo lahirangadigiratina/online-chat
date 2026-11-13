@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { ChatLocationScreen } from "./ChatLocationScreen";
 import { ChatReceiverConfirmScreen } from "./ChatReceiverConfirmScreen";
@@ -13,11 +14,11 @@ import {
 } from "./chatThread";
 import { ChatRouteScreen } from "./ChatRouteScreen";
 import { VoiceTalkScreen } from "./VoiceTalkScreen";
+import type { AiBookingDemo, AiBookingStarter } from "@/lib/ai-booking-recommendations";
 
 type AppScreen =
   | "welcome"
   | "voice"
-  | "prompts"
   | "manual"
   | "manualSender"
   | "manualReceiver"
@@ -49,31 +50,11 @@ function MicIcon() {
   );
 }
 
-const STARTER_PROMPTS = [
-  "Send a pair of shoes to Mum in Brisbane",
-  "Send a birthday gift to my sister in Melbourne",
-  "Drop documents at a PARCELPOINT near work",
-];
-
 function ArrowIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
       <path
         d="M5 12h14M13 6l6 6-6 6"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function BackIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M15 6l-6 6 6 6"
         stroke="currentColor"
         strokeWidth="2"
         strokeLinecap="round"
@@ -193,30 +174,6 @@ function OptionCard({
   );
 }
 
-function ScreenHeader({
-  title,
-  onBack,
-}: {
-  title: string;
-  onBack: () => void;
-}) {
-  return (
-    <header className="flex shrink-0 items-center gap-3 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-5">
-      <button
-        type="button"
-        onClick={onBack}
-        aria-label="Back"
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-neutral-200 bg-white text-[#0B1B32]"
-      >
-        <BackIcon />
-      </button>
-      <h1 className="min-w-0 flex-1 text-[17px] font-bold text-[#0B1B32]">
-        {title}
-      </h1>
-    </header>
-  );
-}
-
 function SendPlaneIcon() {
   return (
     <svg
@@ -237,6 +194,7 @@ function SendPlaneIcon() {
 }
 
 export function WelcomeScreen() {
+  const router = useRouter();
   const [text, setText] = useState("");
   const [screen, setScreen] = useState<AppScreen>("welcome");
   const [chatBackTarget, setChatBackTarget] = useState<"welcome" | "location">(
@@ -248,9 +206,9 @@ export function WelcomeScreen() {
   const [chatInitialThread, setChatInitialThread] = useState<ChatMessage[]>(
     [],
   );
-  const [receiverSeed, setReceiverSeed] = useState<
-    "compose" | "voice" | "prompts"
-  >("compose");
+  const [receiverSeed, setReceiverSeed] = useState<"compose" | "voice">(
+    "compose",
+  );
   const [manualSize, setManualSize] = useState<string | null>(null);
   const [manualPackaging, setManualPackaging] = useState<"yes" | "no" | null>(
     null,
@@ -287,6 +245,16 @@ export function WelcomeScreen() {
   const [storeRadius, setStoreRadius] = useState(2);
   const [savedStoreId, setSavedStoreId] = useState("westfield");
   const [collectionStoreId, setCollectionStoreId] = useState<string | null>(null);
+  const openAiBooking = (opts?: {
+    demo?: AiBookingDemo | null;
+    starter?: AiBookingStarter;
+  }) => {
+    const params = new URLSearchParams();
+    if (opts?.demo) params.set("demo", opts.demo);
+    if (opts?.starter) params.set("starter", opts.starter);
+    const query = params.toString();
+    router.push(query ? `/ai-booking?${query}` : "/ai-booking");
+  };
 
   const openChat = (
     phase: ChatEntryPhase,
@@ -303,15 +271,6 @@ export function WelcomeScreen() {
     if (!trimmed) return;
     setLastSentMessage(trimmed);
     setReceiverSeed("compose");
-    setText("");
-    setScreen("receiver");
-  };
-
-  const startFromPrompt = (prompt: string) => {
-    const trimmed = prompt.trim();
-    if (!trimmed) return;
-    setLastSentMessage(trimmed);
-    setReceiverSeed("prompts");
     setText("");
     setScreen("receiver");
   };
@@ -367,11 +326,7 @@ export function WelcomeScreen() {
               ]
             : []
         }
-        onBack={() =>
-          setScreen(
-            fromVoice ? "voice" : receiverSeed === "prompts" ? "prompts" : "welcome",
-          )
-        }
+        onBack={() => setScreen(fromVoice ? "voice" : "welcome")}
         onLooksRight={(receiverDetailsMessage) => {
           setChatBackTarget("welcome");
           openChat(
@@ -397,55 +352,6 @@ export function WelcomeScreen() {
         onBack={() => setScreen(chatBackTarget)}
         onFinished={() => setScreen("welcome")}
       />
-    );
-  }
-
-  if (screen === "prompts") {
-    return (
-      <div className="flex h-full min-h-0 flex-col bg-[#F7F8FA]">
-        <ScreenHeader title="Prompt selection" onBack={() => setScreen("welcome")} />
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 sm:px-5">
-          <p className="pb-3 text-[15px] leading-snug text-[#6B7280]">
-            Pick a starting prompt and PPGo will take it from there.
-          </p>
-          <div className="flex flex-col gap-2.5">
-            {STARTER_PROMPTS.map((prompt) => (
-              <button
-                key={prompt}
-                type="button"
-                onClick={() => startFromPrompt(prompt)}
-                className="rounded-2xl border border-neutral-200 bg-white px-4 py-3.5 text-left text-[15px] font-bold leading-snug text-[#0B1B32] shadow-sm transition active:scale-[0.99]"
-              >
-                {prompt}
-              </button>
-            ))}
-          </div>
-        </div>
-        <footer className="shrink-0 border-t border-neutral-200/80 bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 sm:px-5">
-          <div className="flex items-center gap-2.5">
-            <input
-              type="text"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") startFromPrompt(text);
-              }}
-              placeholder="Or type your own prompt..."
-              aria-label="Your prompt"
-              className="min-w-0 flex-1 rounded-full bg-[#ECEEF2] px-5 py-3.5 text-[15px] text-[#0B1B32] outline-none placeholder:text-[#9CA3AF]"
-            />
-            <button
-              type="button"
-              aria-label="Send prompt"
-              disabled={!text.trim()}
-              onClick={() => startFromPrompt(text)}
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#0B1B32] text-white transition enabled:active:scale-[0.98] disabled:bg-neutral-200 disabled:text-neutral-400"
-            >
-              <SendPlaneIcon />
-            </button>
-          </div>
-        </footer>
-      </div>
     );
   }
 
@@ -1461,22 +1367,22 @@ export function WelcomeScreen() {
         <OptionCard
           tone="voice"
           recommended
-          title="Voice AI"
-          detail="Talk it through with PPGo"
+          title="Speak to me"
+          detail="Let's figure out what we are sending"
           icon={<MicIcon />}
           onClick={() => setScreen("voice")}
         />
         <OptionCard
           tone="prompt"
-          title="Prompt selection"
-          detail="Pick a starting prompt and PPGo continues"
+          title="Chat with me"
+          detail="Tell me what you're sending — I'll help you"
           icon={<PromptIcon />}
-          onClick={() => setScreen("prompts")}
+          onClick={() => openAiBooking()}
         />
         <OptionCard
           tone="manual"
-          title="Manual form"
-          detail="Fill in the parcel and receiver yourself"
+          title="Standard booking form"
+          detail="Fill in a few details to arrange your parcel delivery"
           icon={<FormIcon />}
           onClick={() => setScreen("manual")}
         />

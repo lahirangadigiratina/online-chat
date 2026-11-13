@@ -7,7 +7,6 @@ import {
   buildParcelProgressMessages,
   buildParcelThreadAppend,
   PARCEL_PHOTO_SKIP_USER,
-  parcelDescribePlaceholder,
   parcelPackagingUserLine,
   resolveParcelPackagingChoice,
   suggestParcelSizeId,
@@ -680,19 +679,6 @@ export function ChatParcelScreen({
       <ChatFlowFooter
         input={input}
         onInputChange={setInput}
-        placeholder={
-          phase === "contents"
-            ? "Clothing & Fashion"
-            : phase === "describe"
-              ? parcelDescribePlaceholder(categoryId ?? undefined)
-              : phase === "packaging"
-                ? parcelPackagingUserLine("add")
-                : phase === "photo"
-                  ? PARCEL_PHOTO_SKIP_USER
-                  : phase === "size"
-                    ? sizeReplyLine(suggestedSizeLabel)
-                    : "Type or tap the mic..."
-        }
         onSubmitMessage={
           phase === "contents"
             ? submitContents

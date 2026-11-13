@@ -523,13 +523,6 @@ export function ChatReceiverConfirmScreen({
       <ChatFlowFooter
         input={input}
         onInputChange={setInput}
-        placeholder={
-          view === "edit"
-            ? "Or tell PGo what to change..."
-            : awaitingReceiverDetails && entry === "welcome"
-              ? "Name, mobile, email and address..."
-              : "Type or tap the mic..."
-        }
         onSubmitMessage={
           view === "confirm" && awaitingReceiverDetails && entry === "welcome"
             ? submitReceiverDetails

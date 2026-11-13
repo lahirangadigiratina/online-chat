@@ -351,7 +351,6 @@ export function ChatPayConfirmScreen({
       <ChatFlowFooter
         input={input}
         onInputChange={setInput}
-        placeholder="Type or tap the mic..."
         accentOrange={PGO_ORANGE}
       />
 

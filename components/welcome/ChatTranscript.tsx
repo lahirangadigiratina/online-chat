@@ -10,12 +10,49 @@ import {
 } from "react";
 import type { ChatMessage } from "./chatThread";
 import { ParcelPhotoBubble } from "./ParcelPhotoBubble";
+import { PpGoMark } from "./PpGoMark";
 
 export const BOT_REPLY_DELAY_MS = 2000;
 
-export function UserBubble({ children }: { children: ReactNode }) {
+function UserBubbleEditIcon() {
   return (
-    <div className="flex justify-end">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4L16.5 3.5z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+export function PpGoChatAvatar() {
+  return <PpGoMark size={32} className="mb-0.5" />;
+}
+
+export function UserBubble({
+  children,
+  onEdit,
+  editLabel = "Edit message",
+}: {
+  children: ReactNode;
+  onEdit?: () => void;
+  editLabel?: string;
+}) {
+  return (
+    <div className="flex justify-end items-end gap-2">
+      {onEdit ? (
+        <button
+          type="button"
+          onClick={onEdit}
+          aria-label={editLabel}
+          className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#F6D0BC] bg-[#FFF8F4] text-[#C44717] shadow-sm transition hover:border-[#E4571A] hover:bg-[#FFF3EC] active:scale-[0.98]"
+        >
+          <UserBubbleEditIcon />
+        </button>
+      ) : null}
       <div className="max-w-[88%] rounded-[1.25rem] rounded-br-md bg-[#0B1B32] px-4 py-2.5 text-[15px] leading-snug text-white">
         {children}
       </div>
@@ -26,14 +63,17 @@ export function UserBubble({ children }: { children: ReactNode }) {
 export function BotBubble({
   bordered,
   children,
+  showAvatar = true,
 }: {
   bordered?: boolean;
   children: ReactNode;
+  showAvatar?: boolean;
 }) {
   return (
-    <div className="flex justify-start">
+    <div className="flex items-end justify-start gap-2">
+      {showAvatar ? <PpGoChatAvatar /> : null}
       <div
-        className={`max-w-[92%] rounded-[1.25rem] rounded-bl-md bg-white px-4 py-2.5 text-[15px] leading-snug text-[#0B1B32] ${
+        className={`min-w-0 max-w-[calc(100%-2.5rem)] rounded-[1.25rem] rounded-bl-md bg-white px-4 py-2.5 text-[15px] leading-snug text-[#0B1B32] ${
           bordered ? "border border-neutral-200 shadow-none" : "shadow-sm"
         }`}
       >
@@ -70,29 +110,62 @@ function renderableContent(content: ReactNode): ReactNode {
   return null;
 }
 
-export function ChatScrollArea({ children }: { children: ReactNode }) {
+function shouldHoldChatScroll(): boolean {
+  const active = document.activeElement;
+  if (!active) return false;
+  if (
+    active instanceof HTMLInputElement ||
+    active instanceof HTMLTextAreaElement ||
+    active instanceof HTMLSelectElement
+  ) {
+    return true;
+  }
+  return Boolean(active.closest("[contenteditable='true'], [data-chat-form]"));
+}
+
+export function ChatScrollArea({
+  children,
+  scrollKey,
+}: {
+  children: ReactNode;
+  /** Bump when a new message should scroll into view (e.g. thread length). */
+  scrollKey?: string | number;
+}) {
   const ref = useRef<HTMLDivElement>(null);
+
+  const pinToLatest = (force = false) => {
+    const node = ref.current;
+    if (!node) return;
+    if (!force && shouldHoldChatScroll()) return;
+    node.scrollTop = node.scrollHeight;
+  };
+
+  useEffect(() => {
+    if (scrollKey === undefined) return;
+    const node = ref.current;
+    if (!node) return;
+    let frame = 0;
+    frame = window.requestAnimationFrame(() => pinToLatest(false));
+    return () => window.cancelAnimationFrame(frame);
+  }, [scrollKey]);
 
   useEffect(() => {
     const node = ref.current;
     if (!node) return;
 
     let frame = 0;
-    const pinToLatest = () => {
+    const schedulePin = (force = false) => {
       window.cancelAnimationFrame(frame);
-      frame = window.requestAnimationFrame(() => {
-        node.scrollTop = node.scrollHeight;
-      });
+      frame = window.requestAnimationFrame(() => pinToLatest(force));
     };
 
-    pinToLatest();
-    const observer = new MutationObserver(pinToLatest);
+    schedulePin(true);
+    const observer = new MutationObserver(() => schedulePin(false));
     observer.observe(node, {
       childList: true,
       subtree: true,
-      characterData: true,
     });
-    const resize = new ResizeObserver(pinToLatest);
+    const resize = new ResizeObserver(() => schedulePin(false));
     if (node.firstElementChild) resize.observe(node.firstElementChild);
 
     return () => {
@@ -111,7 +184,12 @@ export function ChatScrollArea({ children }: { children: ReactNode }) {
 
 export function TypingBubble() {
   return (
-    <div className="flex justify-start" aria-live="polite" aria-label="PGo is typing">
+    <div
+      className="flex items-end justify-start gap-2"
+      aria-live="polite"
+      aria-label="PGo is typing"
+    >
+      <PpGoChatAvatar />
       <div className="flex items-center gap-1.5 rounded-[1.25rem] rounded-bl-md bg-white px-4 py-3.5 shadow-sm">
         {[0, 150, 300].map((delay) => (
           <span

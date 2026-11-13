@@ -1,5 +1,8 @@
 "use client";
 
+import { useEffect, useRef, type RefObject } from "react";
+import { PpGoMark } from "./PpGoMark";
+
 const STEPS = ["Route", "Parcel", "Price", "Pay"] as const;
 
 export type ChatFlowStep = (typeof STEPS)[number];
@@ -62,6 +65,7 @@ interface HeaderProps {
   accentOrange?: string;
   assistantTagline?: string;
   assistantTaglineClassName?: string;
+  hideProgress?: boolean;
 }
 
 export function ChatFlowHeader({
@@ -70,9 +74,14 @@ export function ChatFlowHeader({
   accentOrange = "#E8651A",
   assistantTagline = "Your shipping assistant",
   assistantTaglineClassName = "text-[#2D7A4D]",
+  hideProgress = false,
 }: HeaderProps) {
   return (
-    <header className="shrink-0 border-b border-neutral-200/80 bg-white px-3 pb-0 pt-[max(0.5rem,env(safe-area-inset-top))] sm:px-4">
+    <header
+      className={`shrink-0 border-b border-neutral-200/80 bg-white px-3 pt-[max(0.5rem,env(safe-area-inset-top))] sm:px-4 ${
+        hideProgress ? "pb-3" : "pb-0"
+      }`}
+    >
       <div className="flex items-center gap-2.5 pb-3 pt-2">
         <button
           type="button"
@@ -82,12 +91,7 @@ export function ChatFlowHeader({
         >
           <BackChevron />
         </button>
-        <div
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
-          style={{ backgroundColor: accentOrange }}
-        >
-          P
-        </div>
+        <PpGoMark size={36} />
         <div className="min-w-0 flex-1">
           <p className="text-[15px] font-bold leading-tight text-[#0B1B32]">
             PPGo
@@ -97,44 +101,46 @@ export function ChatFlowHeader({
           </p>
         </div>
       </div>
-      <nav
-        className="flex gap-1 border-t border-neutral-100 pb-3 pt-2.5"
-        aria-label="Booking progress"
-      >
-        {STEPS.map((step, index) => {
-          const activeIndex = STEPS.indexOf(activeStep);
-          const active = step === activeStep;
-          const completed = index < activeIndex;
-          const highlighted = completed || active;
-          return (
-            <div
-              key={step}
-              className="flex min-w-0 flex-1 flex-col items-start gap-1.5"
-            >
-              <span
-                className={`block w-full rounded-full ${
-                  highlighted ? "h-1" : "h-0.5 bg-[#E5E7EB]"
-                }`}
-                style={
-                  highlighted ? { backgroundColor: accentOrange } : undefined
-                }
-                aria-hidden
-              />
-              <span
-                className={`text-[13px] leading-none ${
-                  active
-                    ? "font-bold text-[#0B1B32]"
-                    : completed
-                      ? "font-normal text-[#0B1B32]"
-                      : "font-normal text-[#6B7280]"
-                }`}
+      {!hideProgress ? (
+        <nav
+          className="flex gap-1 border-t border-neutral-100 pb-3 pt-2.5"
+          aria-label="Booking progress"
+        >
+          {STEPS.map((step, index) => {
+            const activeIndex = STEPS.indexOf(activeStep);
+            const active = step === activeStep;
+            const completed = index < activeIndex;
+            const highlighted = completed || active;
+            return (
+              <div
+                key={step}
+                className="flex min-w-0 flex-1 flex-col items-start gap-1.5"
               >
-                {step}
-              </span>
-            </div>
-          );
-        })}
-      </nav>
+                <span
+                  className={`block w-full rounded-full ${
+                    highlighted ? "h-1" : "h-0.5 bg-[#E5E7EB]"
+                  }`}
+                  style={
+                    highlighted ? { backgroundColor: accentOrange } : undefined
+                  }
+                  aria-hidden
+                />
+                <span
+                  className={`text-[13px] leading-none ${
+                    active
+                      ? "font-bold text-[#0B1B32]"
+                      : completed
+                        ? "font-normal text-[#0B1B32]"
+                        : "font-normal text-[#6B7280]"
+                  }`}
+                >
+                  {step}
+                </span>
+              </div>
+            );
+          })}
+        </nav>
+      ) : null}
     </header>
   );
 }
@@ -142,32 +148,50 @@ export function ChatFlowHeader({
 export function ChatFlowFooter({
   input,
   onInputChange,
-  placeholder,
   accentOrange = "#E8651A",
   onSubmitMessage,
+  inputRef,
+  submitEnabled,
 }: {
   input: string;
   onInputChange: (v: string) => void;
-  placeholder: string;
   accentOrange?: string;
   onSubmitMessage?: () => void;
+  inputRef?: RefObject<HTMLTextAreaElement | null>;
+  /** When set, Send works even if the composer is empty (e.g. structured form submit). */
+  submitEnabled?: boolean;
 }) {
+  const localRef = useRef<HTMLTextAreaElement>(null);
+  const fieldRef = inputRef ?? localRef;
+  const hasText = input.trim().length > 0;
+  const canSend = submitEnabled ?? hasText;
+
+  useEffect(() => {
+    const el = fieldRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const next = Math.min(el.scrollHeight, 132);
+    el.style.height = `${Math.max(48, next)}px`;
+  }, [input, fieldRef]);
+
   return (
     <footer className="shrink-0 border-t border-neutral-200/80 bg-white px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-5">
-      <div className="flex items-center gap-2.5">
-        <input
-          type="text"
+      <div className="flex items-end gap-2.5">
+        <textarea
+          ref={fieldRef}
+          rows={1}
           value={input}
           onChange={(e) => onInputChange(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && onSubmitMessage && input.trim()) {
+            if (e.key === "Enter" && !e.shiftKey && onSubmitMessage && canSend) {
               e.preventDefault();
               onSubmitMessage();
             }
           }}
-          placeholder={placeholder}
           aria-label="Message"
-          className="min-w-0 flex-1 rounded-full bg-[#ECEEF2] px-5 py-3.5 text-[15px] text-[#0B1B32] outline-none placeholder:text-[#9CA3AF]"
+          className={`min-h-12 min-w-0 max-h-[132px] flex-1 resize-none overflow-y-auto bg-[#ECEEF2] px-5 py-3.5 text-[15px] leading-snug text-[#0B1B32] outline-none placeholder:text-[#9CA3AF] ${
+            hasText ? "rounded-2xl" : "rounded-full"
+          }`}
         />
         <button
           type="button"
@@ -180,9 +204,9 @@ export function ChatFlowFooter({
         <button
           type="button"
           aria-label="Send"
-          disabled={!input.trim()}
+          disabled={!canSend}
           onClick={() => {
-            if (input.trim()) onSubmitMessage?.();
+            if (canSend) onSubmitMessage?.();
           }}
           className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#0B1B32] text-white transition enabled:active:scale-[0.98] disabled:bg-neutral-200 disabled:text-neutral-400"
         >
