@@ -7,6 +7,7 @@ import {
 } from "./chatThread";
 import { ChatFlowHeader } from "./ChatFlowHeader";
 import { ChatScrollArea, ChatTranscript } from "./ChatTranscript";
+import { bookingEmailFollowUp } from "./bookingEmailCopy";
 
 const PGO_ORANGE = "#C44717";
 const PGO_NAVY = "#0B1B32";
@@ -55,34 +56,6 @@ function ClockIconSmall() {
   );
 }
 
-function DownloadIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M12 3v12M8 11l4 4 4-4M5 21h14"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function ShareIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M12 16V4M12 4l-4 4M12 4l4 4M5 20h14"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 interface Props {
   onClose: () => void;
   onSendAnother: () => void;
@@ -120,11 +93,7 @@ export function BookingConfirmedInStoreScreen({
             </span>
           </div>
 
-          <BotBubble>
-            {details.bookedMessage}{" "}
-            <span className="font-bold">{details.total}</span> by EFTPOS or
-            cash — they&apos;ll print and attach the label.
-          </BotBubble>
+          <BotBubble>{details.bookedMessage}</BotBubble>
 
           <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
             <div className="px-4 pt-4">
@@ -146,27 +115,8 @@ export function BookingConfirmedInStoreScreen({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2.5">
-            <button
-              type="button"
-              className="flex items-center justify-center gap-2 rounded-full py-3.5 text-sm font-bold text-white"
-              style={{ backgroundColor: PGO_ORANGE }}
-            >
-              <DownloadIcon />
-              {details.primaryActionLabel}
-            </button>
-            <button
-              type="button"
-              className="flex items-center justify-center gap-2 rounded-full border border-[#0B1B32] bg-white py-3.5 text-sm font-bold text-[#0B1B32]"
-            >
-              <ShareIcon />
-              Share
-            </button>
-          </div>
-
           <BotBubble>
-            I&apos;ve also emailed your receipt and booking to{" "}
-            {details.receiptEmail}.
+            {bookingEmailFollowUp(details.receiptEmail, "store")}
           </BotBubble>
         </div>
       </ChatScrollArea>

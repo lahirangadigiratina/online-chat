@@ -2,8 +2,6 @@
 
 import { useState } from "react";
 
-const PGO_ORANGE = "#C44717";
-
 function PencilIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -13,28 +11,6 @@ function PencilIcon() {
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function LockIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <rect
-        x="5"
-        y="11"
-        width="14"
-        height="10"
-        rx="2"
-        stroke="currentColor"
-        strokeWidth="2"
-      />
-      <path
-        d="M8 11V8a4 4 0 118 0v3"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
       />
     </svg>
   );
@@ -98,7 +74,6 @@ export function AiBookingSummaryWidget({
   onEditTo,
   onEditParcel,
   onEditDelivery,
-  onContinue,
 }: {
   summary: AiBookingSummaryLines;
   disabled?: boolean;
@@ -107,7 +82,6 @@ export function AiBookingSummaryWidget({
   onEditTo?: () => void;
   onEditParcel?: () => void;
   onEditDelivery?: () => void;
-  onContinue?: () => void;
 }) {
   const [coupon, setCoupon] = useState("");
 
@@ -188,17 +162,6 @@ export function AiBookingSummaryWidget({
           Apply
         </button>
       </div>
-
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={onContinue}
-        className="flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-[15px] font-bold text-white transition active:scale-[0.99] disabled:opacity-50"
-        style={{ backgroundColor: PGO_ORANGE }}
-      >
-        <LockIcon />
-        Continue to payment · {summary.total}
-      </button>
     </div>
   );
 }

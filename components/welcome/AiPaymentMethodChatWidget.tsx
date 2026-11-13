@@ -1,21 +1,10 @@
 "use client";
 
-function CardIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <rect
-        x="3"
-        y="6"
-        width="18"
-        height="12"
-        rx="2"
-        stroke="currentColor"
-        strokeWidth="1.75"
-      />
-      <path d="M3 10h18" stroke="currentColor" strokeWidth="1.75" />
-    </svg>
-  );
-}
+import { useState } from "react";
+import {
+  OnlinePaymentSubOptions,
+  type OnlinePaySubMethod,
+} from "./OnlinePaymentMethods";
 
 function StoreIcon() {
   return (
@@ -66,6 +55,23 @@ function LockIcon() {
   );
 }
 
+function OnlineIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect
+        x="3"
+        y="6"
+        width="18"
+        height="12"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth="1.75"
+      />
+      <path d="M3 10h18" stroke="currentColor" strokeWidth="1.75" />
+    </svg>
+  );
+}
+
 export function AiPaymentMethodChatWidget({
   total,
   selected,
@@ -79,36 +85,57 @@ export function AiPaymentMethodChatWidget({
   onSelectOnline: () => void;
   onSelectInStore: () => void;
 }) {
+  const [onlineSub, setOnlineSub] = useState<OnlinePaySubMethod>("card");
+
+  const pickOnline = () => {
+    onSelectOnline();
+    setOnlineSub("card");
+  };
+
   return (
     <div className="space-y-3">
       <div className="flex flex-col gap-2.5">
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={onSelectOnline}
-          className={`flex w-full items-center gap-3 rounded-2xl border bg-white p-4 text-left transition disabled:opacity-50 ${
+        <div
+          className={`w-full rounded-2xl border bg-white transition ${
             selected === "online"
               ? "border-2 border-[#C44717] bg-[#FFF8F4]"
               : "border-neutral-200"
           }`}
         >
-          <span
-            className={
-              selected === "online" ? "text-[#C44717]" : "text-neutral-400"
-            }
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={pickOnline}
+            className="flex w-full items-center gap-3 p-4 text-left disabled:opacity-50"
           >
-            <CardIcon />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-[15px] font-bold text-[#0B1B32]">
-              Pay online by card
+            <span
+              className={
+                selected === "online" ? "text-[#C44717]" : "text-neutral-400"
+              }
+            >
+              <OnlineIcon />
             </span>
-            <span className="mt-0.5 block text-sm text-neutral-500">
-              Visa or Mastercard · label ready straight away
+            <span className="min-w-0 flex-1">
+              <span className="block text-[15px] font-bold text-[#0B1B32]">
+                Pay online
+              </span>
+              <span className="mt-0.5 block text-sm text-neutral-500">
+                Card, Google Pay or Apple Pay · label ready straight away
+              </span>
             </span>
-          </span>
-          <RadioMark selected={selected === "online"} />
-        </button>
+            <RadioMark selected={selected === "online"} />
+          </button>
+          {selected === "online" ? (
+            <div className="px-4 pb-4">
+              <OnlinePaymentSubOptions
+                selected={onlineSub}
+                disabled={disabled}
+                onSelectCard={() => setOnlineSub("card")}
+                compact
+              />
+            </div>
+          ) : null}
+        </div>
 
         <button
           type="button"
@@ -132,7 +159,7 @@ export function AiPaymentMethodChatWidget({
               Pay in store
             </span>
             <span className="mt-0.5 block text-sm text-neutral-500">
-              EFTPOS or cash at the PARCELPOINT when you drop it off
+              EFTPOS or cash at the counter when you hand over your parcel
             </span>
           </span>
           <RadioMark selected={selected === "instore"} />

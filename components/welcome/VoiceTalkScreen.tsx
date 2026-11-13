@@ -2,6 +2,10 @@
 
 const WAVEFORM_HEIGHTS = [10, 22, 32, 18, 28, 24, 14];
 
+/** Plain-text transcript shown while listening; passed into AI chat on stop. */
+export const VOICE_DEMO_TRANSCRIPT =
+  "I want to send a pair of shoes to my mum in Brisbane";
+
 interface Props {
   onClose: () => void;
   onStop: () => void;
@@ -102,7 +106,7 @@ export function VoiceTalkScreen({ onClose, onStop, onOpenChat }: Props) {
         </div>
 
         <p className="mt-10 text-[1.35rem] font-bold leading-snug text-white sm:mt-12 sm:text-2xl">
-          &ldquo;I want to send a pair of shoes to my mum in{" "}
+          &ldquo;{VOICE_DEMO_TRANSCRIPT.replace(/\s+Brisbane\s*$/i, "")}{" "}
           <span className="text-[#F08A5D]">Brisbane...</span>&rdquo;
         </p>
       </div>

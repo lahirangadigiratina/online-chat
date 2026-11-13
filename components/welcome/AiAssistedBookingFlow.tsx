@@ -14,6 +14,7 @@ import {
   demoPreset,
   aiBookingStarterPrefill,
   type AiBookingDemo,
+  type AiBookingStarter,
   type AiRecommendation,
   type AiSizeId,
 } from "@/lib/ai-booking-recommendations";
@@ -44,6 +45,7 @@ import {
   parseContactLine,
   parseIntakeMessage,
   parseIntakeDraftFields,
+  parseConversationalIntakeMessage,
   formatAuMobileLabel,
   parsePackaging,
   parsePayment,
@@ -64,15 +66,7 @@ import {
   AiBookingSummaryWidget,
   type AiBookingSummaryLines,
 } from "./AiBookingSummaryWidget";
-import {
-  DangerousChoiceButtons,
-  DangerousGoodsCard,
-  DangerousGoodsLockedCard,
-  MarketingChoiceButtons,
-  TermsAgreementCard,
-  TermsChoiceButtons,
-  TermsDeclineRecoveryButtons,
-} from "./PayConfirmChatWidgets";
+import { PayConfirmationsContent } from "./PayConfirmChatWidgets";
 import { AiPaymentMethodChatWidget } from "./AiPaymentMethodChatWidget";
 import { AiBookingConfirmedPanel } from "./AiBookingConfirmedPanel";
 import { AiIntakeFormWidget } from "./AiIntakeFormWidget";
@@ -97,20 +91,49 @@ const SIGNATURE_DECLINED_CONFIRMATION = `No worries! We'll leave your parcel in 
 
 ${SENDER_STEP_INTRO}`;
 
-const SENDER_MARKETING_PROMPT =
-  "Awesome, got your details! Would you like to hear about special offers, updates, and promotions from us? 😊";
-
 const RECEIVER_INTRO_PROMPT =
-  "No worries at all! 😊 Let's move on to the next step. Who should we send your parcel to?";
+  "Thanks — got your details! 😊 Who should we send your parcel to?";
 
-const RECEIVER_INTRO_AFTER_MARKETING_OPT_IN =
-  "Perfect! 😊 We'll keep you updated on any special offers. Now, let's get the receiver's details so we can get your parcel on its way!";
-
-const RECEIVER_DELIVERY_UPDATES_PROMPT =
-  "Awesome, we've got the receiver's details too! 😊 Would they like to receive updates and notifications about the parcel's delivery?";
+const RECEIVER_NOTIFICATIONS_INFO =
+  "Awesome — we've got the receiver's details too! 😊 They'll get delivery updates by text and email as the parcel moves. If you'd rather we don't notify them, just tell us before you pay.";
 
 const PACKAGING_STEP_PROMPT =
   "Would you like us to provide packaging for your parcel? It's just $2 extra! 😊";
+
+const PACKAGING_CHIP_OPEN_PROMPT = `We can add store packaging for just $2 extra — we'll have a box ready at the PARCELPOINT when you drop off. 😊
+
+Add your parcel size, declared value, and destination in the form below, then send your message when you're done.`;
+
+const COST_CHIP_OPEN_PROMPT = `Happy to help with pricing! 😊
+
+Add your parcel size, declared value, and destination in the form below, then send your message and we'll show you an estimate.`;
+
+const PACKAGING_CHIP_NOTED =
+  "Got it — store packaging (+$2) is on your booking. You'll see it in your price summary at checkout. 😊";
+
+const PACKAGING_CARRYON_NOTE =
+  "Store packaging isn't available for Carry On — pack your items securely for transit. 😊";
+
+const COST_QUOTE_SIGNATURE_PROMPT =
+  "Want signature on delivery? Tap Yes please or No thanks — or send your message to go ahead without it. 😊";
+
+const VALUE_HELP_CHIP_OPEN_PROMPT = `No worries — we can walk you through declared value and what to put on your booking. 😊
+
+Use the form below, then send your message when your parcel details are complete.`;
+
+const VALUE_HELP_EDUCATION_BODY = `No problem — here's how declared value works:
+
+Parcel Protection is included when your declared value is $100 or below. That covers loss or damage up to the amount you declare.
+
+Above $100, Parcel Protection is 2.5% on the value over $100 (e.g. $200 declared → $2.50 protection).
+
+What affects the value you declare:
+· Replacement cost if you had to buy it again new
+· Gifts — use a fair replacement figure, not sentimental worth alone
+· Used items — typical resale or replace cost
+· Contents — electronics, jewellery and similar items often need a higher declared value
+
+Pop a number under VALUE, or add it to your message (e.g. $80). Then send when your parcel details are complete.`;
 
 const CONFIRM_PARTIES_INTRO_WITH_UPDATES = `Perfect! 😊 Everything looks good! We'll keep you updated with notifications about your parcel every step of the way.
 
@@ -125,6 +148,17 @@ const CONFIRM_PARTIES_INTRO_DEFAULT =
 
 const CONFIRM_PARTIES_UPDATED_INTRO =
   "Here's your updated summary — does it look right? 😊";
+
+const REVIEW_DETAILS_UPDATED_PROMPT = `Here's your updated summary — does everything look right, or would you like to change something? 😊`;
+
+const FULL_REVIEW_INTRO =
+  "Here's your full booking summary — all your details and pricing in one place. 😊 Tap any line to edit, or continue when you're happy.";
+
+const REVIEW_LOOKS_GOOD_ACK =
+  "Perfect! 😊 Tap Continue to payment when you're ready.";
+
+const REVIEW_CHANGE_SOMETHING_HINT =
+  "No worries — tap the pencil next to any line you'd like to update. 😊";
 
 const CONFIRM_PARTIES_CHANGE_CHIP = "Change something";
 
@@ -150,17 +184,13 @@ const PHASE_ORDER = [
   "intake",
   "recommend",
   "sender",
-  "senderMarketing",
   "receiver",
-  "receiverDeliveryUpdates",
-  "confirmParties",
-  "packaging",
   "photo",
+  "packaging",
+  "confirmParties",
   "notify",
   "review",
   "confirmTerms",
-  "confirmDangerous",
-  "confirmMarketing",
   "payment",
   "booked",
 ] as const;
@@ -185,6 +215,7 @@ function emptySendNudgeForPhase(
   options?: {
     confirmPartiesEditStep?: ConfirmPartiesEditStep;
     reviewEditTarget?: ReviewEditTarget;
+    termsDeclined?: boolean;
   },
 ): string {
   switch (phase) {
@@ -195,11 +226,7 @@ function emptySendNudgeForPhase(
         "delivery suburb or city",
       ]);
     case "recommend":
-      return "Let me know with Yes please, No thanks, or Start over — or type your choice. 😊";
-    case "senderMarketing":
-      return "Would you like to hear about special offers from us? Tap Yes, sounds good! or No, thanks. — or type your reply. 😊";
-    case "receiverDeliveryUpdates":
-      return "Should we notify the receiver about delivery? Tap Yes, keep me updated! or No, thanks. — or type your reply. 😊";
+      return "Reply Yes please or No thanks for optional add-ons — or type your choice. 😊";
     case "confirmParties":
       if (options?.confirmPartiesEditStep === "choose") {
         return "Tap Sender or Receiver above, type your choice, or use Start over. 😊";
@@ -214,20 +241,18 @@ function emptySendNudgeForPhase(
     case "packaging":
       return "Would you like packaging? Tap Yes, add packaging or No, thanks — or type your reply. 😊";
     case "photo":
-      return "Add a parcel photo above, or send Skip for now to continue. 😊";
+      return "Add a parcel photo above, or send Skip for now to move on. 😊";
     case "notify":
       return "Should we notify your receiver by text? Reply yes or no. 😊";
     case "review":
       if (options?.reviewEditTarget) {
         return "Update the text in the box below and send when you're ready. 😊";
       }
-      return "Tap Show price summary or type it in chat, then continue to payment when you're ready. 😊";
+      return `Tap Continue to payment, ${CONFIRM_PARTIES_CHANGE_CHIP}, or type your reply. 😊`;
     case "confirmTerms":
-      return "Please tap I agree or I don't agree above — or type your choice. 😊";
-    case "confirmDangerous":
-      return "Confirm your parcel doesn't contain dangerous goods, or let us know if it does. 😊";
-    case "confirmMarketing":
-      return "Would you like marketing updates? Reply yes or no. 😊";
+      return options?.termsDeclined
+        ? "Tap I agree now or Cancel booking — or type your reply. 😊"
+        : "Tap I agree & confirm, I don't agree, or It does contain some — or type your choice. 😊";
     case "payment":
       return "Choose Pay online or Pay in store above — or type your preference. 😊";
     default:
@@ -260,17 +285,24 @@ function QuickChip({
   label,
   onClick,
   disabled,
+  variant = "default",
 }: {
   label: string;
   onClick: () => void;
   disabled?: boolean;
+  /** Light orange fill + dark orange border (intake helpers). */
+  variant?: "default" | "accent";
 }) {
+  const style =
+    variant === "accent"
+      ? "border-[#C44717] bg-[#FFF8F4] text-[#C44717]"
+      : "border-neutral-200 bg-white text-[#0B1B32]";
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="rounded-full border border-neutral-200 bg-white px-4 py-2 text-[14px] font-semibold text-[#0B1B32] shadow-sm transition active:scale-[0.99] disabled:opacity-50"
+      className={`rounded-full border px-4 py-2 text-[14px] font-semibold shadow-sm transition active:scale-[0.99] disabled:opacity-50 ${style}`}
     >
       {label}
     </button>
@@ -418,7 +450,6 @@ function AiRecommendUnder100Message({
       <span className="block">
         Good news! 🎉 Parcel Protection is already included at no extra cost.
       </span>
-      <AiRecommendSignatureUpsellMessage />
     </span>
   );
 }
@@ -491,6 +522,53 @@ function recommendBotContent(
       rec={rec}
     />
   );
+}
+
+function computeBookingSummaryLines(input: {
+  senderLine: string;
+  receiverLine: string;
+  suburb: string;
+  intakeUserLine: string;
+  sizeId: AiSizeId | null;
+  valueNum: number;
+  signature: boolean;
+  authorityToLeave: boolean;
+  notifyReceiver: boolean | null;
+  priceLines: { label: string; amount: string }[];
+  total: number;
+}): AiBookingSummaryLines {
+  const sender = senderDraftFromLine(input.senderLine);
+  const receiver = parseContactLine(input.receiverLine);
+  const senderName = [sender.firstName, sender.lastName].filter(Boolean).join(" ");
+  const senderMobile =
+    formatAuMobileLabel(sender.mobile) || sender.mobile.trim();
+  const fromParts = [senderName, senderMobile, sender.businessName.trim()].filter(
+    Boolean,
+  );
+  const fromLine =
+    fromParts.length > 0 ? fromParts.join(" · ") : input.senderLine || "—";
+  const recvName = [receiver.firstName, receiver.lastName].filter(Boolean).join(" ");
+  const displayName = recvName || contactDisplayFirstName(input.receiverLine);
+  const destination = deliveryDestinationLabel(input.receiverLine, input.suburb);
+  const toLine = `${displayName} · door, ${destination}`;
+  const parcelSizeLabel =
+    AI_SIZE_OPTIONS.find((s) => s.id === input.sizeId)?.label ?? "Parcel";
+  const parcelLine =
+    input.intakeUserLine.trim() ||
+    `${parcelSizeLabel} · $${input.valueNum.toLocaleString()} to ${input.suburb}`;
+  const deliveryParts = ["Door"];
+  if (input.signature) deliveryParts.push("signature on delivery");
+  else if (input.authorityToLeave) deliveryParts.push("authority to leave");
+  if (input.notifyReceiver) deliveryParts.push("receiver updates on");
+  const deliveryLine = `${deliveryParts.join(" · ")} · ${destination}`;
+  return {
+    fromLine,
+    toLine,
+    parcelLine,
+    deliveryLine,
+    priceLines: input.priceLines,
+    total: formatAiMoney(input.total),
+  };
 }
 
 function intakeLine(
@@ -667,13 +745,17 @@ function ConfirmPartiesContent({
 interface Props {
   onExit: () => void;
   initialDemo?: AiBookingDemo | null;
+  initialStarter?: AiBookingStarter | null;
   initialComposerPrefill?: string | null;
+  initialAutoSubmitMessage?: string | null;
 }
 
 export function AiAssistedBookingFlow({
   onExit,
   initialDemo = null,
+  initialStarter = null,
   initialComposerPrefill = null,
+  initialAutoSubmitMessage = null,
 }: Props) {
   const demoLine = useMemo(() => {
     if (!initialDemo) return null;
@@ -692,7 +774,14 @@ export function AiAssistedBookingFlow({
   const [composer, setComposer] = useState("");
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const threadBooted = useRef(false);
+  const initialStarterHandled = useRef(false);
+  const initialAutoSubmitHandled = useRef(false);
+  const runInitialStarterRef = useRef<(() => void) | null>(null);
+  const submitDraftRef = useRef<(text: string) => void>(() => {});
   const reviewSummaryCardIdRef = useRef<string | null>(null);
+  const deliverReviewEditVerificationRef = useRef<
+    (summary: AiBookingSummaryLines) => void
+  >(() => {});
   const threadMessageSeq = useRef(0);
   const nextThreadMessageId = (prefix: string) => {
     threadMessageSeq.current += 1;
@@ -727,7 +816,6 @@ export function AiAssistedBookingFlow({
   const [intakeUserLine, setIntakeUserLine] = useState("");
   const [termsDeclined, setTermsDeclined] = useState(false);
   const [dangerousContains, setDangerousContains] = useState(false);
-  const [noDangerousHighlight, setNoDangerousHighlight] = useState(false);
   const [payment, setPayment] = useState<"online" | "instore" | null>(null);
   const [demoSent, setDemoSent] = useState(false);
   const [reviewShowsPricing, setReviewShowsPricing] = useState(false);
@@ -739,7 +827,18 @@ export function AiAssistedBookingFlow({
     suburb: string;
     userLine: string;
     kind: "packaging" | "cost" | "valueHelp";
+    costQuoteShown?: boolean;
   } | null>(null);
+  const [packagingIntakeFormRevealed, setPackagingIntakeFormRevealed] =
+    useState(false);
+  const [packagingContinueChipsVisible, setPackagingContinueChipsVisible] =
+    useState(false);
+  const [costIntakeFormRevealed, setCostIntakeFormRevealed] = useState(false);
+  const [costContinueChipsVisible, setCostContinueChipsVisible] = useState(false);
+  const [valueHelpIntakeFormRevealed, setValueHelpIntakeFormRevealed] =
+    useState(false);
+  const [valueHelpContinueChipsVisible, setValueHelpContinueChipsVisible] =
+    useState(false);
   const [recommendAddonsPending, setRecommendAddonsPending] = useState(false);
   const [recommendPromptStep, setRecommendPromptStep] = useState<
     "protection" | "signature" | null
@@ -784,58 +883,39 @@ export function AiAssistedBookingFlow({
 
   const total = priceSummary.total;
 
-  const bookingSummary = useMemo((): AiBookingSummaryLines => {
-    const sender = senderDraftFromLine(senderLine);
-    const receiver = parseContactLine(receiverLine);
-    const senderName = [sender.firstName, sender.lastName].filter(Boolean).join(" ");
-    const senderMobile =
-      formatAuMobileLabel(sender.mobile) || sender.mobile.trim();
-    const fromParts = [senderName, senderMobile, sender.businessName.trim()].filter(
-      Boolean,
-    );
-    const fromLine =
-      fromParts.length > 0 ? fromParts.join(" · ") : senderLine || "—";
-    const recvName = [receiver.firstName, receiver.lastName].filter(Boolean).join(" ");
-    const displayName = recvName || contactDisplayFirstName(receiverLine);
-    const destination = deliveryDestinationLabel(receiverLine, suburb);
-    const toLine = `${displayName} · door, ${destination}`;
-    const parcelSizeLabel =
-      AI_SIZE_OPTIONS.find((s) => s.id === sizeId)?.label ?? "Parcel";
-    const parcelLine =
-      intakeUserLine.trim() ||
-      `${parcelSizeLabel} · $${valueNum.toLocaleString()} to ${suburb}`;
-    const deliveryParts = ["Door"];
-    if (signature) deliveryParts.push("signature on delivery");
-    else if (authorityToLeave) deliveryParts.push("authority to leave");
-    if (notifyReceiver) deliveryParts.push("receiver updates on");
-    const deliveryLine = `${deliveryParts.join(" · ")} · ${destination}`;
-    return {
-      fromLine,
-      toLine,
-      parcelLine,
-      deliveryLine,
-      priceLines: priceSummary.lines,
-      total: formatAiMoney(total),
-    };
-  }, [
-    senderLine,
-    receiverLine,
-    suburb,
-    intakeUserLine,
-    sizeId,
-    valueNum,
-    signature,
-    authorityToLeave,
-    notifyReceiver,
-    priceSummary.lines,
-    total,
-  ]);
+  const bookingSummary = useMemo(
+    (): AiBookingSummaryLines =>
+      computeBookingSummaryLines({
+        senderLine,
+        receiverLine,
+        suburb,
+        intakeUserLine,
+        sizeId,
+        valueNum,
+        signature,
+        authorityToLeave,
+        notifyReceiver,
+        priceLines: priceSummary.lines,
+        total,
+      }),
+    [
+      senderLine,
+      receiverLine,
+      suburb,
+      intakeUserLine,
+      sizeId,
+      valueNum,
+      signature,
+      authorityToLeave,
+      notifyReceiver,
+      priceSummary.lines,
+      total,
+    ],
+  );
 
   const headerStep: ChatFlowStep =
     phase === "review" ||
     phase === "confirmTerms" ||
-    phase === "confirmDangerous" ||
-    phase === "confirmMarketing" ||
     phase === "payment" ||
     phase === "booked"
       ? "Pay"
@@ -895,17 +975,17 @@ export function AiAssistedBookingFlow({
     setComposer("");
   };
 
-  const goToReviewPrompt = () => {
-    setReviewShowsPricing(false);
+  const goToReviewPrompt = (options?: { updated?: boolean }) => {
+    setReviewShowsPricing(true);
     setReviewEditTarget(null);
     pushBot(
-      "Here's a quick summary of your parcel! 😊 You can tap any detail to make changes, or just let me know what you'd like to update.",
+      options?.updated ? CONFIRM_PARTIES_UPDATED_INTRO : FULL_REVIEW_INTRO,
       "review",
     );
     const summaryCardId = nextThreadMessageId("ai-bot-review-summary");
     reviewSummaryCardIdRef.current = summaryCardId;
     pushBot(
-      <ReviewBookingDetailsContent
+      <AiBookingSummaryWidget
         summary={bookingSummary}
         onEditFrom={editSummaryFrom}
         onEditTo={editSummaryTo}
@@ -916,11 +996,23 @@ export function AiAssistedBookingFlow({
       true,
       { id: summaryCardId },
     );
-    pushBot(
-      "When you're happy with the details, say Show price summary to see pricing.",
-      "review",
-    );
     goToPhase("review");
+    setComposer("");
+  };
+
+  const goToPostPhotoNext = () => {
+    const addr = receiverDraft.address.trim();
+    if (addr.length >= 2 && suburb.trim().length < 2) {
+      const tail = addr.split(",").pop()?.trim() ?? addr;
+      setSuburb(tail.replace(/\s+QLD\s*\d{4}$/i, "").trim() || tail);
+    }
+    if (sizeId === "carryon" || packaging === "yes") {
+      if (sizeId === "carryon") setPackaging("no");
+      goToReviewPrompt();
+    } else {
+      pushBot(PACKAGING_STEP_PROMPT, "packaging");
+      goToPhase("packaging");
+    }
     setComposer("");
   };
 
@@ -955,10 +1047,7 @@ export function AiAssistedBookingFlow({
   };
 
   const beginPayConfirmations = () => {
-    pushBot(
-      "Before you pay, a few quick confirmations. First — do you agree to our terms?",
-      "confirmTerms",
-    );
+    pushBot(<PayConfirmationsContent />, "confirmTerms", true);
     goToPhase("confirmTerms");
     setComposer("");
   };
@@ -968,35 +1057,24 @@ export function AiAssistedBookingFlow({
     beginPayConfirmations();
   };
 
-  const agreeToTerms = () => {
+  const completePayConfirmations = () => {
     setTermsDeclined(false);
-    pushUser("✓ I agree");
-    pushBot(
-      "Thanks! Next — can you confirm there's nothing dangerous inside?",
-      "confirmDangerous",
-    );
-    goToPhase("confirmDangerous");
-    setComposer("");
+    setDangerousContains(false);
+    pushUser("✓ I agree & confirm");
+    goToPaymentPrompt();
+  };
+
+  const agreeToTerms = () => {
+    completePayConfirmations();
   };
 
   const declineToTerms = () => {
     setTermsDeclined(true);
     pushUser("I don't agree");
     pushBot(
-      "No problem — but I can't complete the booking without your agreement to the Terms & Conditions and Privacy Policy.",
+      "No problem — I can't finish the booking without that agreement. 😊 Tap I agree now to proceed, or Cancel booking to leave.",
       "confirmTerms",
     );
-    setComposer("");
-  };
-
-  const confirmNoDangerous = () => {
-    setDangerousContains(false);
-    pushUser("✓ I confirm");
-    pushBot(
-      "Last one, and it's optional — would you like marketing and promotional updates from PARCELPOINT?",
-      "confirmMarketing",
-    );
-    goToPhase("confirmMarketing");
     setComposer("");
   };
 
@@ -1004,8 +1082,8 @@ export function AiAssistedBookingFlow({
     setDangerousContains(true);
     pushUser("It does contain some");
     pushBot(
-      "We can't send dangerous or prohibited goods through PARCELPOINT — tap back to change what's in the parcel, or tell me what you're sending.",
-      "confirmDangerous",
+      "Sorry — we can't send dangerous or prohibited goods through PARCELPOINT. 😊 Type start over to change what's in the parcel, or tell me what you're sending in the box below.",
+      "confirmTerms",
     );
     setComposer("");
   };
@@ -1027,11 +1105,6 @@ export function AiAssistedBookingFlow({
     );
     goToPhase("payment");
     setComposer("");
-  };
-
-  const completeMarketing = (yes: boolean) => {
-    pushUser(yes ? "Yes please" : "No thanks");
-    goToPaymentPrompt();
   };
 
   const completeNotifyStep = (notify: boolean, userLine?: string) => {
@@ -1084,7 +1157,7 @@ export function AiAssistedBookingFlow({
   };
 
   const reviewSummaryCardContent = () => (
-    <ReviewBookingDetailsContent
+    <AiBookingSummaryWidget
       summary={bookingSummary}
       onEditFrom={editSummaryFrom}
       onEditTo={editSummaryTo}
@@ -1118,9 +1191,43 @@ export function AiAssistedBookingFlow({
     });
   };
 
+  const reviewSummarySnapshot = (
+    overrides: Partial<{
+      senderLine: string;
+      receiverLine: string;
+      suburb: string;
+      intakeUserLine: string;
+      sizeId: AiSizeId | null;
+      valueNum: number;
+      signature: boolean;
+      authorityToLeave: boolean;
+    }> = {},
+  ) =>
+    computeBookingSummaryLines({
+      senderLine: overrides.senderLine ?? senderLine,
+      receiverLine: overrides.receiverLine ?? receiverLine,
+      suburb: overrides.suburb ?? suburb,
+      intakeUserLine: overrides.intakeUserLine ?? intakeUserLine,
+      sizeId: overrides.sizeId ?? sizeId,
+      valueNum: overrides.valueNum ?? valueNum,
+      signature: overrides.signature ?? signature,
+      authorityToLeave: overrides.authorityToLeave ?? authorityToLeave,
+      notifyReceiver,
+      priceLines: priceSummary.lines,
+      total,
+    });
+
   const applyReviewEditFromComposer = (text: string) => {
     const target = reviewEditTarget;
     if (!target) return false;
+
+    const completeReviewEdit = (summary: AiBookingSummaryLines) => {
+      if (text.trim()) pushUser(text);
+      setReviewEditTarget(null);
+      setComposer("");
+      deliverReviewEditVerificationRef.current(summary);
+      return true;
+    };
 
     if (target === "from") {
       const base =
@@ -1144,6 +1251,7 @@ export function AiAssistedBookingFlow({
       const line = buildSenderContactLine(draft);
       setSenderLine(line);
       setSenderDraft(draft);
+      return completeReviewEdit(reviewSummarySnapshot({ senderLine: line }));
     } else if (target === "to") {
       const base =
         receiverLine.trim().length > 0
@@ -1169,11 +1277,27 @@ export function AiAssistedBookingFlow({
       const line = buildReceiverContactLine(draft);
       setReceiverLine(line);
       setReceiverDraft(draft);
+      return completeReviewEdit(reviewSummarySnapshot({ receiverLine: line }));
     } else if (target === "parcel") {
       const parsed = parseIntakeMessage(text);
       if (parsed) {
+        const rec = buildAiRecommendation(
+          parsed.sizeId,
+          parsed.value,
+          parsed.suburb,
+        );
         applyParcelFields(parsed);
         setIntakeUserLine(text);
+        return completeReviewEdit(
+          reviewSummarySnapshot({
+            sizeId: parsed.sizeId,
+            valueNum: parsed.value,
+            suburb: parsed.suburb,
+            intakeUserLine: text,
+            signature: parsed.value > 100 ? rec.signature : false,
+            authorityToLeave: rec.authorityToLeave,
+          }),
+        );
       } else {
         const fields = mergeIntakeDraftFields(
           {
@@ -1195,12 +1319,23 @@ export function AiAssistedBookingFlow({
           setComposer(buildIntakeComposerLine(fields));
           return true;
         }
+        const rec = buildAiRecommendation(fields.sizeId, value, dest);
         applyParcelFields({
           sizeId: fields.sizeId,
           value,
           suburb: dest,
         });
         setIntakeUserLine(text);
+        return completeReviewEdit(
+          reviewSummarySnapshot({
+            sizeId: fields.sizeId,
+            valueNum: value,
+            suburb: dest,
+            intakeUserLine: text,
+            signature: value > 100 ? rec.signature : false,
+            authorityToLeave: rec.authorityToLeave,
+          }),
+        );
       }
     } else if (target === "delivery") {
       pushUser(text);
@@ -1209,18 +1344,31 @@ export function AiAssistedBookingFlow({
       const idx = thread.findIndex((m) => m.anchor === "recommend");
       if (idx >= 0) {
         setThread((current) => current.slice(0, idx + 1));
-        setRecommendAddonsPending(true);
-        setRecommendPromptStep(valueNum > 100 ? "protection" : "signature");
-        setStackDepth(phaseIndex("recommend"));
-        setPhase("recommend");
+        if (valueNum > 100) {
+          setRecommendAddonsPending(true);
+          setRecommendPromptStep("protection");
+          setStackDepth(phaseIndex("recommend"));
+          setPhase("recommend");
+        } else {
+          advanceFromRecommendChoices();
+        }
       }
       return true;
     }
 
-    if (text.trim()) pushUser(text);
-    setReviewEditTarget(null);
+    return false;
+  };
+
+  const remindReviewChangeSomething = () => {
+    pushUser(CONFIRM_PARTIES_CHANGE_CHIP);
+    pushBot(REVIEW_CHANGE_SOMETHING_HINT, "review");
     setComposer("");
-    return true;
+  };
+
+  const acknowledgeReviewLooksGood = (answer: string) => {
+    pushUser(answer);
+    pushBot(REVIEW_LOOKS_GOOD_ACK, "review");
+    setComposer("");
   };
 
   const beginConfirmPartiesEdit = () => {
@@ -1298,19 +1446,11 @@ export function AiAssistedBookingFlow({
     line: string;
     draft: ReceiverContactDraft;
   }) => {
-    const line = receiverOverride?.line ?? receiverLine;
-    const draft =
-      receiverOverride?.draft ??
-      (line.trim()
-        ? {
-            ...contactDraftFromLine(line),
-            businessName: receiverDraft.businessName,
-          }
-        : receiverDraft);
-    const optIn = notifyReceiver;
-    showConfirmParties(line, draft, optIn === null ? undefined : optIn, {
-      updated: true,
-    });
+    if (receiverOverride) {
+      setReceiverLine(receiverOverride.line);
+      setReceiverDraft(receiverOverride.draft);
+    }
+    goToReviewPrompt({ updated: true });
   };
 
   const answerConfirmPartiesEditTarget = (answer: string) => {
@@ -1340,7 +1480,7 @@ export function AiAssistedBookingFlow({
     }
 
     pushBot(
-      "I can only update sender or receiver details here. Type sender or receiver to continue. 😊",
+      "I can only update sender or receiver details here. Type sender or receiver to pick which. 😊",
       "confirmParties",
     );
     setComposer("");
@@ -1352,7 +1492,7 @@ export function AiAssistedBookingFlow({
     } else {
       pushUser(PARCEL_PHOTO_SKIP_USER);
     }
-    goToNotifyPrompt();
+    goToPostPhotoNext();
   };
 
   const startEditContact = (
@@ -1390,6 +1530,12 @@ export function AiAssistedBookingFlow({
     setRecommendAddonsPending(false);
     setRecommendPromptStep(null);
     setIntakePendingQuote(null);
+    setPackagingIntakeFormRevealed(false);
+    setPackagingContinueChipsVisible(false);
+    setCostIntakeFormRevealed(false);
+    setCostContinueChipsVisible(false);
+    setValueHelpIntakeFormRevealed(false);
+    setValueHelpContinueChipsVisible(false);
     setSizeId(null);
     setValueNum(0);
     setSuburb("");
@@ -1406,7 +1552,6 @@ export function AiAssistedBookingFlow({
     setIntakeUserLine("");
     setTermsDeclined(false);
     setDangerousContains(false);
-    setNoDangerousHighlight(false);
     setPayment(null);
     setReviewShowsPricing(false);
     setReviewEditTarget(null);
@@ -1445,6 +1590,30 @@ export function AiAssistedBookingFlow({
     setLastTypedBotId(id);
   };
 
+  deliverReviewEditVerificationRef.current = (summary) => {
+    const summaryCardId = nextThreadMessageId("ai-bot-review-summary");
+    reviewSummaryCardIdRef.current = summaryCardId;
+    pushBot(
+      <>
+        <span className="mb-2 block whitespace-pre-line">
+          {REVIEW_DETAILS_UPDATED_PROMPT}
+        </span>
+        <AiBookingSummaryWidget
+          summary={summary}
+          onEditFrom={editSummaryFrom}
+          onEditTo={editSummaryTo}
+          onEditParcel={editSummaryParcel}
+          onEditDelivery={editSummaryDelivery}
+        />
+      </>,
+      "review",
+      true,
+      { id: summaryCardId },
+    );
+    setReviewShowsPricing(true);
+    goToPhase("review");
+  };
+
   const goToPhase = (next: Phase) => {
     const nextDepth = phaseIndex(next);
     setStackDepth((depth) => Math.max(depth, nextDepth));
@@ -1477,20 +1646,33 @@ export function AiAssistedBookingFlow({
 
   const handleComposerChange = (value: string) => {
     setComposer(value);
-    if (phase === "intake") {
+    if (phase === "intake" && !intakePendingQuote) {
       mergeIntakeDraftFromComposer(value);
     }
   };
 
   const fillDraft = (text: string) => {
     setComposer(text);
-    if (phase === "intake") {
+    if (phase === "intake" && !intakePendingQuote) {
       mergeIntakeDraftFromComposer(text);
     }
     const method = parsePayment(text);
     if (method) setPayment(method);
     window.requestAnimationFrame(() => composerRef.current?.focus());
   };
+
+  const submitDraft = (text: string) => {
+    const method = parsePayment(text);
+    if (method) setPayment(method);
+    if (phase === "intake" && intakePendingQuote) {
+      setComposer("");
+      handlePendingIntakeReply(text);
+      return;
+    }
+    fillDraft(text);
+    window.requestAnimationFrame(() => handleSubmit());
+  };
+  submitDraftRef.current = submitDraft;
 
   const intakeValueFromDraft = (
     parsed: { sizeId: AiSizeId; value: number; suburb: string },
@@ -1540,8 +1722,14 @@ export function AiAssistedBookingFlow({
       recommendBotContent(intake.sizeId, intake.value, intake.suburb, rec),
       "recommend",
     );
+    if (intake.value <= 100) {
+      setRecommendAddonsPending(false);
+      setRecommendPromptStep(null);
+      advanceFromRecommendChoices();
+      return;
+    }
     setRecommendAddonsPending(true);
-    setRecommendPromptStep(intake.value > 100 ? "protection" : "signature");
+    setRecommendPromptStep("protection");
     goToPhase("recommend");
     setComposer("");
   };
@@ -1565,10 +1753,12 @@ export function AiAssistedBookingFlow({
       suburb: string;
     },
     userLine: string,
-    options?: { botBeforeQuote?: string },
+    options?: { botBeforeQuote?: string; skipUserMessage?: boolean },
   ) => {
     setIntakeUserLine(userLine);
-    pushUser(userLine);
+    if (!options?.skipUserMessage) {
+      pushUser(userLine);
+    }
     if (options?.botBeforeQuote) {
       pushBot(options.botBeforeQuote, "recommend");
     }
@@ -1594,18 +1784,21 @@ export function AiAssistedBookingFlow({
       setSignature(false);
     }
 
-    if (pending.kind === "cost" || pending.kind === "valueHelp") {
+    if (pending.kind === "valueHelp") {
       pushBot(
         recommendBotContent(parsed.sizeId, parsed.value, parsed.suburb, rec),
         "recommend",
       );
-      setRecommendAddonsPending(true);
-      setRecommendPromptStep(parsed.value > 100 ? "protection" : "signature");
-    } else {
-      deliverIntakeQuote(parsed);
-      return;
     }
-    goToPhase("recommend");
+    if (parsed.value > 100) {
+      setRecommendAddonsPending(true);
+      setRecommendPromptStep("protection");
+      goToPhase("recommend");
+    } else {
+      setRecommendAddonsPending(false);
+      setRecommendPromptStep(null);
+      advanceFromRecommendChoices();
+    }
     setComposer("");
   };
 
@@ -1621,6 +1814,25 @@ export function AiAssistedBookingFlow({
 
   const answerRecommendProtectionPrompt = (text: string) => {
     const t = text.trim();
+
+    if (
+      valueNum <= 100 &&
+      !recommendAddonsPending &&
+      (/^yes\s*please\b/i.test(t) ||
+        /\bsignature\s+on\s+delivery\b/i.test(t) ||
+        /\badd\s+signature\b/i.test(t))
+    ) {
+      pushUser(t);
+      setSignature(true);
+      setAuthorityToLeave(false);
+      setParcelProtection(recommendation.parcelProtection);
+      pushBot(SIGNATURE_ADDED_CONFIRMATION, "sender");
+      setSenderDraft(EMPTY_SENDER_CONTACT_DRAFT);
+      setReceiverDraft(EMPTY_RECEIVER_CONTACT_DRAFT);
+      goToPhase("sender");
+      setComposer("");
+      return true;
+    }
 
     const finishSignatureChoice = (wantSignature: boolean) => {
       if (wantSignature) {
@@ -1688,47 +1900,206 @@ export function AiAssistedBookingFlow({
     return false;
   };
 
-  const confirmIntakePendingQuote = (answer: string) => {
-    if (!intakePendingQuote) return;
-    if (isAffirmative(answer) || isProceedBooking(answer)) {
-      pushUser(answer);
-      setIntakeUserLine(intakePendingQuote.userLine);
+  const finishCostFlowAfterQuote = (
+    draft: { sizeId: AiSizeId; value: number; suburb: string },
+    wantSignature: boolean,
+  ) => {
+    applyParcelFields(draft);
+    const rec = buildAiRecommendation(draft.sizeId, draft.value, draft.suburb);
+    if (wantSignature) {
+      setSignature(true);
+      setAuthorityToLeave(false);
+    } else {
+      setSignature(false);
+      setAuthorityToLeave(rec.authorityToLeave);
+    }
+    if (draft.value <= 100) {
+      setParcelProtection(rec.parcelProtection);
+    }
+    setRecommendAddonsPending(false);
+    setRecommendPromptStep(null);
+    setCostIntakeFormRevealed(false);
+    setCostContinueChipsVisible(false);
+    setIntakePendingQuote(null);
+    setComposer("");
+    if (draft.value <= 100 && !wantSignature) {
+      pushBot(SENDER_STEP_INTRO, "sender");
+    } else {
+      pushBot(
+        wantSignature
+          ? SIGNATURE_ADDED_CONFIRMATION
+          : SIGNATURE_DECLINED_CONFIRMATION,
+        "sender",
+      );
+    }
+    setSenderDraft(EMPTY_SENDER_CONTACT_DRAFT);
+    setReceiverDraft(EMPTY_RECEIVER_CONTACT_DRAFT);
+    goToPhase("sender");
+  };
 
-      if (intakePendingQuote.kind === "valueHelp") {
-        const draft = getCompleteIntakeDraft();
-        if (!draft) {
-          pushBot(
-            "Add size, declared value and delivering to in the form — then send or tap How much does it cost?",
-            "intake",
-          );
-          setIntakePendingQuote(null);
-          setComposer("");
-          return;
-        }
-        continueAfterIntakePreview({
+  const dismissPendingIntakeQuote = (answer?: string) => {
+    if (answer?.trim()) pushUser(answer.trim());
+    setIntakePendingQuote(null);
+    setPackagingIntakeFormRevealed(false);
+    setPackagingContinueChipsVisible(false);
+    setCostIntakeFormRevealed(false);
+    setCostContinueChipsVisible(false);
+    setValueHelpIntakeFormRevealed(false);
+    setValueHelpContinueChipsVisible(false);
+    setComposer("");
+  };
+
+  const completePackagingIntakeFromDraft = (
+    draft: { sizeId: AiSizeId; value: number; suburb: string },
+  ) => {
+    let proceedLine = intakeLine(draft.sizeId, draft.value, draft.suburb);
+    if (draft.sizeId === "carryon") {
+      setPackaging("no");
+    } else {
+      setPackaging("yes");
+      proceedLine = `${proceedLine} — I need store packaging`;
+    }
+    setPackagingIntakeFormRevealed(false);
+    setPackagingContinueChipsVisible(false);
+    setIntakePendingQuote(null);
+    setComposer("");
+    applyIntake(
+      { sizeId: draft.sizeId, value: draft.value, suburb: draft.suburb },
+      proceedLine,
+    );
+  };
+
+  const tryAdvancePendingIntakeFlow = (answer = ""): boolean => {
+    if (!intakePendingQuote) return false;
+    const draft = getCompleteIntakeDraft();
+
+    if (intakePendingQuote.kind === "packaging") {
+      if (!draft) return false;
+      completePackagingIntakeFromDraft(draft);
+      return true;
+    }
+
+    if (intakePendingQuote.kind === "cost") {
+      if (!draft) return false;
+      const userLine = `How much does it cost? ${intakeLine(draft.sizeId, draft.value, draft.suburb)}`;
+      if (!intakePendingQuote.costQuoteShown) {
+        pushCostQuoteWithContinue(draft);
+        setIntakePendingQuote({
           ...intakePendingQuote,
           sizeId: draft.sizeId,
           value: draft.value,
           suburb: draft.suburb,
-          kind: "valueHelp",
+          userLine,
+          costQuoteShown: true,
         });
-      } else {
-        continueAfterIntakePreview(intakePendingQuote);
+        setCostContinueChipsVisible(draft.value > 100);
+        setComposer("");
+        if (draft.value <= 100) {
+          finishCostFlowAfterQuote(draft, false);
+        }
+        return true;
       }
+      const wantSignature =
+        draft.value > 100 &&
+        (/^yes\s*please\b/i.test(answer) ||
+          /\bsignature\b/i.test(answer.toLowerCase()));
+      if (draft.value <= 100) {
+        if (
+          /^yes\s*please\b/i.test(answer) ||
+          /\bsignature\b/i.test(answer.toLowerCase())
+        ) {
+          if (answer.trim()) pushUser(answer.trim());
+          finishCostFlowAfterQuote(draft, true);
+        } else {
+          finishCostFlowAfterQuote(draft, false);
+        }
+        return true;
+      }
+      if (/^yes\s*please\b/i.test(answer) || /^no\s*thanks\b/i.test(answer)) {
+        if (answer.trim()) pushUser(answer.trim());
+        finishCostFlowAfterQuote(draft, wantSignature);
+        return true;
+      }
+      if (!answer.trim() || isAffirmative(answer) || isProceedBooking(answer)) {
+        finishCostFlowAfterQuote(draft, false);
+        return true;
+      }
+      return false;
+    }
 
+    if (intakePendingQuote.kind === "valueHelp") {
+      if (!draft) return false;
+      const valueHelpUserLine = intakePendingQuote.userLine;
+      setValueHelpIntakeFormRevealed(false);
+      setValueHelpContinueChipsVisible(false);
       setIntakePendingQuote(null);
       setComposer("");
-      return;
+      applyIntake(
+        { sizeId: draft.sizeId, value: draft.value, suburb: draft.suburb },
+        valueHelpUserLine,
+        { skipUserMessage: true },
+      );
+      return true;
     }
-    if (/^no\b|not yet/i.test(answer)) {
-      pushUser(answer);
+
+    return false;
+  };
+
+  const handlePendingIntakeReply = (answer: string) => {
+    if (!intakePendingQuote) return;
+    const text = answer.trim();
+    if (/^no\b|not yet/i.test(text)) {
+      dismissPendingIntakeQuote(text);
       pushBot(
-        "No worries — update your parcel details or tap a quick reply when you're ready.",
+        "No worries — say Start over anytime, or fill in the form and send when you're ready. 😊",
         "intake",
       );
-      setIntakePendingQuote(null);
-      setComposer("");
+      return;
     }
+    if (text) {
+      const merged = mergeIntakeDraftFields(intakeDraft, text);
+      setIntakeDraft(merged);
+      if (
+        !/^yes\s*please\b/i.test(text) &&
+        !/^no\s*thanks\b/i.test(text) &&
+        !isAffirmative(text)
+      ) {
+        pushUser(text);
+      }
+    }
+    if (tryAdvancePendingIntakeFlow(text)) return;
+    const missing = intakeDraftMissingLabels(intakeDraft);
+    pushBot(
+      missing.length
+        ? buildIntakeFollowUpPrompt(missing)
+        : "Fill in anything that's missing below, then send your message. 😊",
+      "intake",
+    );
+    setComposer("");
+  };
+
+  const pushCostQuoteWithContinue = (draft: {
+    sizeId: AiSizeId;
+    value: number;
+    suburb: string;
+  }) => {
+    const rec = buildAiRecommendation(draft.sizeId, draft.value, draft.suburb);
+    if (draft.value <= 100) {
+      pushBot(
+        recommendBotContent(draft.sizeId, draft.value, draft.suburb, rec),
+        "intake",
+      );
+      return;
+    }
+    pushBot(
+      <>
+        {recommendBotContent(draft.sizeId, draft.value, draft.suburb, rec)}
+        <span className="mt-3 block whitespace-pre-line text-[15px] leading-snug text-[#0B1B32]">
+          {COST_QUOTE_SIGNATURE_PROMPT}
+        </span>
+      </>,
+      "intake",
+    );
   };
 
   const getCompleteIntakeDraft = () => {
@@ -1761,101 +2132,139 @@ export function AiAssistedBookingFlow({
     return true;
   };
 
-  const handleCostQuickChip = () => {
-    const draft = getCompleteIntakeDraft();
+  const runCostSuggestionFlow = (
+    submittedText?: string,
+    draftOverride?: {
+      sizeId: AiSizeId;
+      value: number;
+      suburb: string;
+    } | null,
+  ) => {
+    const draft = draftOverride ?? getCompleteIntakeDraft();
+    const userLine =
+      submittedText?.trim() ||
+      (draft
+        ? `How much does it cost? ${
+            composer.trim() ||
+            buildIntakeComposerLine(intakeDraft) ||
+            intakeLine(draft.sizeId, draft.value, draft.suburb)
+          }`
+        : "How much does it cost?");
+
+    pushUser(userLine);
+    setIntakeUserLine(userLine);
+    setCostIntakeFormRevealed(false);
+    setCostContinueChipsVisible(false);
+
     if (!draft) {
-      fillDraft(aiBookingStarterPrefill("cost"));
+      const parsed = submittedText ? parseIntakeMessage(submittedText) : null;
+      pushBot(COST_CHIP_OPEN_PROMPT, "intake");
+      setCostIntakeFormRevealed(true);
+      setIntakePendingQuote({
+        sizeId: parsed?.sizeId ?? intakeDraft.sizeId ?? "satchel",
+        value:
+          parsed?.value ??
+          (Number(intakeDraft.valueText.replace(/[^\d.]/g, "")) || 0),
+        suburb: parsed?.suburb ?? (intakeDraft.suburb.trim() || ""),
+        userLine,
+        kind: "cost",
+        costQuoteShown: false,
+      });
+      setComposer("");
       return;
     }
 
-    const baseLine =
-      composer.trim() ||
-      buildIntakeComposerLine(intakeDraft) ||
-      intakeLine(draft.sizeId, draft.value, draft.suburb);
-    const userLine = `How much does it cost? ${baseLine}`;
-
-    setIntakeUserLine(userLine);
-    pushUser(userLine);
-    const rec = buildAiRecommendation(
-      draft.sizeId,
-      draft.value,
-      draft.suburb,
-    );
-    pushBot(
-      recommendBotContent(draft.sizeId, draft.value, draft.suburb, rec),
-      "intake",
-    );
-    pushBot("Do you wish to continue?", "intake");
+    pushCostQuoteWithContinue(draft);
+    setCostContinueChipsVisible(true);
     setIntakePendingQuote({
       sizeId: draft.sizeId,
       value: draft.value,
       suburb: draft.suburb,
       userLine,
       kind: "cost",
+      costQuoteShown: true,
     });
     setComposer("");
   };
 
-  const handleUnknownParcelValueQuickChip = () => {
-    const userLine = "I'm not sure what my parcel is worth";
-    setIntakeUserLine(userLine);
-    pushUser(userLine);
+  const handleCostQuickChip = () => {
+    runCostSuggestionFlow();
+  };
+
+  const pushValueHelpEducation = () => {
     pushBot(
-      `No problem — here's how declared value works:
-
-Parcel Protection is included when your declared value is $100 or below. That covers loss or damage up to the amount you declare.
-
-Above $100, Parcel Protection is 2.5% on the value over $100 (e.g. $200 declared → $2.50 protection).
-
-What affects the value you declare:
-· Replacement cost if you had to buy it again new
-· Gifts — use a fair replacement figure, not sentimental worth alone
-· Used items — typical resale or replace cost
-· Contents — electronics, jewellery and similar items often need a higher declared value
-
-Pop a number under VALUE, or add it to your message (e.g. $80), when you're ready.`,
+      <span className="block whitespace-pre-line">{VALUE_HELP_EDUCATION_BODY}</span>,
       "intake",
     );
-    pushBot("Do you wish to continue?", "intake");
+  };
+
+  const runValueHelpSuggestionFlow = (submittedText?: string) => {
+    const userLine =
+      submittedText?.trim() || "I'm not sure what my parcel is worth";
     const draft = getCompleteIntakeDraft();
+
+    pushUser(userLine);
+    setIntakeUserLine(userLine);
+    setValueHelpIntakeFormRevealed(false);
+    setValueHelpContinueChipsVisible(false);
+
+    if (!draft) {
+      pushBot(
+        <>
+          <span className="block whitespace-pre-line">
+            {VALUE_HELP_CHIP_OPEN_PROMPT}
+          </span>
+          <span className="mt-3 block whitespace-pre-line">
+            {VALUE_HELP_EDUCATION_BODY}
+          </span>
+        </>,
+        "intake",
+      );
+      setValueHelpIntakeFormRevealed(true);
+      setIntakePendingQuote({
+        sizeId: intakeDraft.sizeId ?? "satchel",
+        value: Number(intakeDraft.valueText.replace(/[^\d.]/g, "")) || 0,
+        suburb: intakeDraft.suburb.trim() || "",
+        userLine,
+        kind: "valueHelp",
+      });
+      setComposer("");
+      return;
+    }
+
+    pushValueHelpEducation();
+    setValueHelpContinueChipsVisible(false);
     setIntakePendingQuote({
-      sizeId: draft?.sizeId ?? intakeDraft.sizeId ?? "satchel",
-      value:
-        draft?.value ??
-        (Number(intakeDraft.valueText.replace(/[^\d.]/g, "")) || 0),
-      suburb: draft?.suburb ?? (intakeDraft.suburb.trim() || ""),
+      sizeId: draft.sizeId,
+      value: draft.value,
+      suburb: draft.suburb,
       userLine,
       kind: "valueHelp",
     });
     setComposer("");
+    window.requestAnimationFrame(() => {
+      tryAdvancePendingIntakeFlow();
+    });
+  };
+
+  const handleUnknownParcelValueQuickChip = () => {
+    runValueHelpSuggestionFlow();
   };
 
   const handlePackagingQuickChip = () => {
+    const userLine = "I need packaging";
     const draft = getCompleteIntakeDraft();
+
+    pushUser(userLine);
+    setIntakeUserLine(userLine);
+
     if (!draft) {
-      fillDraft(aiBookingStarterPrefill("packaging"));
-      return;
-    }
-
-    const baseLine =
-      composer.trim() ||
-      buildIntakeComposerLine(intakeDraft) ||
-      intakeLine(draft.sizeId, draft.value, draft.suburb);
-
-    if (draft.sizeId === "carryon") {
-      const userLine = baseLine;
-      setIntakeUserLine(userLine);
-      pushUser(userLine);
-      pushBot(
-        "Store packaging isn't available for Carry On — pack your items securely for transit.",
-        "intake",
-      );
-      pushBot("Do you wish to continue?", "intake");
-      setPackaging("no");
+      pushBot(PACKAGING_CHIP_OPEN_PROMPT, "intake");
+      setPackagingIntakeFormRevealed(true);
       setIntakePendingQuote({
-        sizeId: draft.sizeId,
-        value: draft.value,
-        suburb: draft.suburb,
+        sizeId: intakeDraft.sizeId ?? "satchel",
+        value: Number(intakeDraft.valueText.replace(/[^\d.]/g, "")) || 0,
+        suburb: intakeDraft.suburb.trim() || "",
         userLine,
         kind: "packaging",
       });
@@ -1863,15 +2272,11 @@ Pop a number under VALUE, or add it to your message (e.g. $80), when you're read
       return;
     }
 
-    setPackaging("yes");
-    const userLine = `${baseLine} — I need store packaging`;
-    setIntakeUserLine(userLine);
-    pushUser(userLine);
-    pushBot(
-      "Got it — store packaging (+$2) is noted. You'll see it in your price summary at checkout.",
-      "intake",
-    );
-    pushBot("Do you wish to continue?", "intake");
+    if (draft.sizeId === "carryon") {
+      pushBot(PACKAGING_CARRYON_NOTE, "intake");
+    } else {
+      pushBot(PACKAGING_CHIP_NOTED, "intake");
+    }
     setIntakePendingQuote({
       sizeId: draft.sizeId,
       value: draft.value,
@@ -1880,6 +2285,7 @@ Pop a number under VALUE, or add it to your message (e.g. $80), when you're read
       kind: "packaging",
     });
     setComposer("");
+    completePackagingIntakeFromDraft(draft);
   };
 
   const showConfirmParties = (
@@ -1919,10 +2325,25 @@ Pop a number under VALUE, or add it to your message (e.g. $80), when you're read
     setComposer("");
   };
 
-  const completeReceiverDeliveryUpdates = (optIn: boolean) => {
-    pushUser(optIn ? "Yes, keep me updated!" : "No, thanks.");
-    setNotifyReceiver(optIn);
-    showConfirmParties(receiverLine, receiverDraft, optIn);
+  const receiverNotifyOptOutFromText = (text: string) =>
+    /don'?t notify|no notify|remove (the )?notif|skip (the )?notif|no (delivery )?updates for (the )?receiver|don'?t (send|give) (them )?updates/i.test(
+      text.trim(),
+    ) ||
+    (/receiver/i.test(text) &&
+      /don'?t|no\b|without|remove|skip/i.test(text) &&
+      /notif|update/i.test(text));
+
+  const tryReceiverNotifyOptOut = (text: string, anchor: Phase = phase) => {
+    if (notifyReceiver !== true) return false;
+    if (!receiverNotifyOptOutFromText(text)) return false;
+    setNotifyReceiver(false);
+    pushUser(text);
+    pushBot(
+      "No worries — we won't send them delivery updates. 😊",
+      anchor,
+    );
+    setComposer("");
+    return true;
   };
 
   const submitSenderDetails = (text: string) => {
@@ -1958,17 +2379,7 @@ Pop a number under VALUE, or add it to your message (e.g. $80), when you're read
       return;
     }
     setReceiverDraft(EMPTY_RECEIVER_CONTACT_DRAFT);
-    pushBot(SENDER_MARKETING_PROMPT, "senderMarketing");
-    goToPhase("senderMarketing");
-    setComposer("");
-  };
-
-  const completeSenderMarketing = (optIn: boolean) => {
-    pushUser(optIn ? "Yes, sounds good!" : "No, thanks.");
-    pushBot(
-      optIn ? RECEIVER_INTRO_AFTER_MARKETING_OPT_IN : RECEIVER_INTRO_PROMPT,
-      "receiver",
-    );
+    pushBot(RECEIVER_INTRO_PROMPT, "receiver");
     goToPhase("receiver");
     setComposer("");
   };
@@ -2005,21 +2416,15 @@ Pop a number under VALUE, or add it to your message (e.g. $80), when you're read
       setComposer("");
       return;
     }
-    pushBot(RECEIVER_DELIVERY_UPDATES_PROMPT, "receiverDeliveryUpdates");
-    goToPhase("receiverDeliveryUpdates");
+    setNotifyReceiver(true);
+    pushBot(RECEIVER_NOTIFICATIONS_INFO, "receiver");
+    pushBot(photoBotMessage(), "photo");
+    goToPhase("photo");
     setComposer("");
   };
 
   const proceedAfterPartiesConfirmed = () => {
-    if (sizeId === "carryon" || packaging === "yes") {
-      if (sizeId === "carryon") setPackaging("no");
-      pushBot(photoBotMessage(), "photo");
-      goToPhase("photo");
-    } else {
-      pushBot(PACKAGING_STEP_PROMPT, "packaging");
-      goToPhase("packaging");
-    }
-    setComposer("");
+    goToPostPhotoNext();
   };
 
   const answerConfirmParties = (answer: string) => {
@@ -2035,6 +2440,7 @@ Pop a number under VALUE, or add it to your message (e.g. $80), when you're read
       applyReceiverUpdateFromConfirm(answer);
       return;
     }
+    if (tryReceiverNotifyOptOut(answer)) return;
     if (
       /^edit\b/i.test(answer.trim()) ||
       /\bedit\b/i.test(answer) ||
@@ -2062,8 +2468,7 @@ Pop a number under VALUE, or add it to your message (e.g. $80), when you're read
   const answerPackaging = (answer: string) => {
     if (sizeId === "carryon") {
       setPackaging("no");
-      pushBot(photoBotMessage(), "photo");
-      goToPhase("photo");
+      goToNotifyPrompt();
       setComposer("");
       return;
     }
@@ -2071,8 +2476,7 @@ Pop a number under VALUE, or add it to your message (e.g. $80), when you're read
     if (!choice) return;
     setPackaging(choice);
     pushUser(answer);
-    pushBot(photoBotMessage(), "photo");
-    goToPhase("photo");
+    goToNotifyPrompt();
     setComposer("");
   };
 
@@ -2088,17 +2492,47 @@ Pop a number under VALUE, or add it to your message (e.g. $80), when you're read
     if (phase === "intake") {
       if (intakePendingQuote) {
         if (!text) {
+          if (tryAdvancePendingIntakeFlow()) return;
+          const missing = intakeDraftMissingLabels(intakeDraft);
           pushBot(
-            "Ready to continue? Tap Yes, continue or Not yet — or type your reply. 😊",
+            missing.length
+              ? buildIntakeFollowUpPrompt(missing)
+              : "Fill in anything that's missing below, then send your message. 😊",
             "intake",
           );
           setComposer("");
           return;
         }
-        confirmIntakePendingQuote(text);
+        handlePendingIntakeReply(text);
         return;
       }
       if (text) {
+        if (
+          /^i(?:'m| am) not sure what my parcel is worth/i.test(text) ||
+          /don'?t know (the )?parcel value/i.test(text)
+        ) {
+          runValueHelpSuggestionFlow(text);
+          return;
+        }
+        if (/^how much does it cost\??/i.test(text)) {
+          const parsed = parseIntakeMessage(text);
+          const draftFromMessage = parsed
+            ? {
+                sizeId: parsed.sizeId,
+                value: parsed.value,
+                suburb: parsed.suburb,
+              }
+            : null;
+          if (parsed) {
+            setIntakeDraft({
+              sizeId: parsed.sizeId,
+              valueText: `$${parsed.value}`,
+              suburb: parsed.suburb,
+            });
+          }
+          runCostSuggestionFlow(text, draftFromMessage);
+          return;
+        }
         const parsed = parseIntakeMessage(text);
         if (parsed) {
           if (confirmPartiesEditResume === "parcel") {
@@ -2151,10 +2585,30 @@ Pop a number under VALUE, or add it to your message (e.g. $80), when you're read
         submitReceiverDetails("");
         return;
       }
+      if (phase === "recommend" && recommendAddonsPending && sizeId) {
+        if (valueNum > 100 && recommendPromptStep === "protection") {
+          pushBot(
+            <>
+              {recommendBotContent(
+                sizeId,
+                valueNum,
+                suburb,
+                buildAiRecommendation(sizeId, valueNum, suburb),
+              )}
+            </>,
+            "recommend",
+          );
+        } else if (valueNum > 100) {
+          pushBot(<AiRecommendSignatureUpsellMessage />, "recommend");
+        }
+        setComposer("");
+        return;
+      }
       pushBot(
         emptySendNudgeForPhase(phase, {
           confirmPartiesEditStep,
           reviewEditTarget,
+          termsDeclined,
         }),
         phase,
       );
@@ -2163,8 +2617,18 @@ Pop a number under VALUE, or add it to your message (e.g. $80), when you're read
     }
 
     if (phase === "recommend") {
-      if (!text) return;
+      if (!text) {
+        if (valueNum <= 100) {
+          advanceFromRecommendChoices();
+          return;
+        }
+        return;
+      }
       if (answerRecommendProtectionPrompt(text)) return;
+      if (valueNum <= 100) {
+        advanceFromRecommendChoices();
+        return;
+      }
       return;
     }
 
@@ -2173,38 +2637,19 @@ Pop a number under VALUE, or add it to your message (e.g. $80), when you're read
       return;
     }
 
-    if (phase === "senderMarketing") {
-      if (!text) return;
-      if (
-        /yes.*sounds good/i.test(text) ||
-        /^yes,\s*sounds good/i.test(text) ||
-        /^yes\b/i.test(text)
-      ) {
-        completeSenderMarketing(true);
-        return;
-      }
-      if (/no,?\s*thanks/i.test(text) || /^no\b/i.test(text)) {
-        completeSenderMarketing(false);
-        return;
-      }
-      return;
-    }
-
     if (phase === "receiver") {
       submitReceiverDetails(text);
       return;
     }
 
-    if (phase === "receiverDeliveryUpdates") {
-      if (!text) return;
-      if (/yes.*keep me updated|keep me updated/i.test(text) || /^yes\b/i.test(text)) {
-        completeReceiverDeliveryUpdates(true);
-        return;
-      }
-      if (/no,?\s*thanks/i.test(text) || /^no\b/i.test(text)) {
-        completeReceiverDeliveryUpdates(false);
-        return;
-      }
+    if (
+      text &&
+      tryReceiverNotifyOptOut(text) &&
+      (phase === "packaging" ||
+        phase === "photo" ||
+        phase === "review" ||
+        phase === "confirmTerms")
+    ) {
       return;
     }
 
@@ -2247,56 +2692,44 @@ Pop a number under VALUE, or add it to your message (e.g. $80), when you're read
       if (reviewEditTarget && text && applyReviewEditFromComposer(text)) {
         return;
       }
-      if (
-        !reviewShowsPricing &&
-        /show\s*price(\s*summary)?|price\s*summary/i.test(text)
-      ) {
-        pushUser(text);
-        setReviewShowsPricing(true);
-        pushBot("Here's your price summary.", "review");
-        setComposer("");
+      if (/change something|^edit\b/i.test(text)) {
+        remindReviewChangeSomething();
         return;
       }
-      if (reviewShowsPricing && /continue|payment/i.test(text)) {
-        pushUser(text);
-        beginPayConfirmations();
-        return;
+      if (
+        /continue|payment/i.test(text) ||
+        isAffirmative(text) ||
+        /^looks good\b/i.test(text)
+      ) {
+        if (/continue|payment/i.test(text)) {
+          pushUser(text);
+          beginPayConfirmations();
+          return;
+        }
+        if (isAffirmative(text) || /^looks good\b/i.test(text)) {
+          acknowledgeReviewLooksGood(text || "Looks good");
+          return;
+        }
       }
       return;
     }
 
     if (phase === "confirmTerms") {
-      if (/^i agree/i.test(text) && !/don'?t/i.test(text)) {
-        agreeToTerms();
+      if (dangerousContains) return;
+      if (/contain/i.test(text)) {
+        reportDangerousGoods();
         return;
       }
       if (/don'?t agree/i.test(text)) {
         declineToTerms();
         return;
       }
-      return;
-    }
-
-    if (phase === "confirmDangerous") {
-      if (dangerousContains) return;
-      if (/^i confirm/i.test(text)) {
-        confirmNoDangerous();
-        return;
-      }
-      if (/contain/i.test(text)) {
-        reportDangerousGoods();
-        return;
-      }
-      return;
-    }
-
-    if (phase === "confirmMarketing") {
-      if (/^yes/i.test(text)) {
-        completeMarketing(true);
-        return;
-      }
-      if (/^no/i.test(text)) {
-        completeMarketing(false);
+      if (
+        /agree\s*&\s*confirm/i.test(text) ||
+        (/^i agree/i.test(text) && !/don'?t/i.test(text)) ||
+        /^i confirm/i.test(text)
+      ) {
+        completePayConfirmations();
         return;
       }
       return;
@@ -2337,19 +2770,70 @@ Pop a number under VALUE, or add it to your message (e.g. $80), when you're read
     setLastTypedBotId(id);
   }, []);
 
+  runInitialStarterRef.current = () => {
+    if (!initialStarter || initialStarterHandled.current) return;
+    initialStarterHandled.current = true;
+    if (initialStarter === "packaging") {
+      handlePackagingQuickChip();
+      return;
+    }
+    if (initialStarter === "cost") {
+      handleCostQuickChip();
+      return;
+    }
+    if (initialStarter === "size") {
+      fillDraft(aiBookingStarterPrefill("size"));
+      return;
+    }
+    if (initialStarter === "valueHelp") {
+      handleUnknownParcelValueQuickChip();
+    }
+  };
+
   useEffect(() => {
-    if (phase !== "review" || reviewShowsPricing) return;
+    if (thread.length === 0 || !initialStarter) return;
+    runInitialStarterRef.current?.();
+  }, [thread.length, initialStarter]);
+
+  useEffect(() => {
+    if (!initialComposerPrefill || initialStarter || initialAutoSubmitMessage) {
+      return;
+    }
+    setComposer(initialComposerPrefill);
+  }, [initialComposerPrefill, initialStarter, initialAutoSubmitMessage]);
+
+  useEffect(() => {
+    if (
+      thread.length === 0 ||
+      !initialAutoSubmitMessage ||
+      initialAutoSubmitHandled.current ||
+      initialStarter
+    ) {
+      return;
+    }
+    initialAutoSubmitHandled.current = true;
+    const conversational = parseConversationalIntakeMessage(
+      initialAutoSubmitMessage,
+    );
+    if (conversational) {
+      setIntakeDraft({
+        sizeId: conversational.sizeId,
+        valueText: String(conversational.value),
+        suburb: conversational.suburb,
+      });
+    }
+    window.requestAnimationFrame(() => {
+      submitDraftRef.current(initialAutoSubmitMessage);
+    });
+  }, [thread.length, initialAutoSubmitMessage, initialStarter]);
+
+  useEffect(() => {
+    if (phase !== "review") return;
     syncReviewSummaryCardInThread();
-  }, [phase, reviewShowsPricing, bookingSummary]);
+  }, [phase, bookingSummary]);
 
   const paymentHighlight = parsePayment(composer) ?? payment;
   const widgetsLive = (step: Phase) => isActive(step);
-
-  const showStepStartOver = (step: Phase) =>
-    widgetsLive(step) &&
-    phase !== "intake" &&
-    phase !== "booked" &&
-    !(phase === "recommend" && recommendAddonsPending);
 
   const ActiveStepChips = ({
     step,
@@ -2366,9 +2850,6 @@ Pop a number under VALUE, or add it to your message (e.g. $80), when you're read
         .join(" ")}
     >
       {children}
-      {showStepStartOver(step) ? (
-        <QuickChip label="Start over" onClick={requestStartOver} />
-      ) : null}
     </div>
   );
 
@@ -2381,22 +2862,26 @@ Pop a number under VALUE, or add it to your message (e.g. $80), when you're read
 
     if (anchor === "intake") {
       const formLocked = !widgetsLive("intake");
+      const showPackagingIntakeForm =
+        intakePendingQuote?.kind === "packaging" && packagingIntakeFormRevealed;
+      const showCostIntakeForm =
+        intakePendingQuote?.kind === "cost" && costIntakeFormRevealed;
+      const showValueHelpIntakeForm =
+        intakePendingQuote?.kind === "valueHelp" && valueHelpIntakeFormRevealed;
+      const showIntakeForm =
+        !intakePendingQuote ||
+        showPackagingIntakeForm ||
+        showCostIntakeForm ||
+        showValueHelpIntakeForm;
+      const intakeFormEditable =
+        showPackagingIntakeForm ||
+        showCostIntakeForm ||
+        showValueHelpIntakeForm;
       return (
         <>
-          {intakePendingQuote ? (
-            <div className="flex flex-wrap gap-2">
-              <QuickChip
-                label="Yes, continue"
-                onClick={() => fillDraft("Yes, continue")}
-              />
-              <QuickChip
-                label="Not yet"
-                onClick={() => fillDraft("Not yet")}
-              />
-            </div>
-          ) : (
+          {showIntakeForm ? (
             <AiIntakeFormWidget
-              locked={formLocked}
+              locked={formLocked && !intakeFormEditable}
               sizeId={intakeDraft.sizeId}
               valueText={intakeDraft.valueText}
               suburb={intakeDraft.suburb}
@@ -2407,18 +2892,35 @@ Pop a number under VALUE, or add it to your message (e.g. $80), when you're read
               onValueTextChange={(valueText) => patchIntakeDraft({ valueText })}
               onSuburbChange={(suburb) => patchIntakeDraft({ suburb })}
             />
-          )}
+          ) : null}
+          {intakePendingQuote?.kind === "cost" &&
+          intakePendingQuote.costQuoteShown &&
+          intakePendingQuote.value > 100 ? (
+            <div className={`flex flex-wrap gap-2${showIntakeForm ? " mt-2" : ""}`}>
+              <QuickChip
+                label="Yes please"
+                onClick={() => submitDraft("Yes please")}
+              />
+              <QuickChip
+                label="No thanks"
+                onClick={() => submitDraft("No thanks")}
+              />
+            </div>
+          ) : null}
           {!intakePendingQuote && !formLocked ? (
             <div className="flex flex-wrap gap-2">
               <QuickChip
+                variant="accent"
                 label="I need packaging"
                 onClick={handlePackagingQuickChip}
               />
               <QuickChip
+                variant="accent"
                 label="How much does it cost?"
                 onClick={handleCostQuickChip}
               />
               <QuickChip
+                variant="accent"
                 label="I don't know the parcel value"
                 onClick={handleUnknownParcelValueQuickChip}
               />
@@ -2429,7 +2931,7 @@ Pop a number under VALUE, or add it to your message (e.g. $80), when you're read
     }
 
 
-    if (anchor === "recommend" && sizeId && recommendAddonsPending) {
+    if (anchor === "recommend" && sizeId && recommendAddonsPending && valueNum > 100) {
       return (
         <div className="flex flex-wrap gap-2">
           <QuickChip
@@ -2444,13 +2946,6 @@ Pop a number under VALUE, or add it to your message (e.g. $80), when you're read
             disabled={!widgetsLive("recommend")}
             onClick={() => {
               if (widgetsLive("recommend")) fillDraft("No thanks");
-            }}
-          />
-          <QuickChip
-            label="Start over"
-            disabled={!widgetsLive("recommend")}
-            onClick={() => {
-              if (widgetsLive("recommend")) requestStartOver();
             }}
           />
         </div>
@@ -2481,52 +2976,6 @@ Pop a number under VALUE, or add it to your message (e.g. $80), when you're read
           />
         );
       }
-    }
-
-    if (anchor === "senderMarketing") {
-      return (
-        <ActiveStepChips step="senderMarketing">
-          <QuickChip
-            label="Yes, sounds good!"
-            disabled={!widgetsLive("senderMarketing")}
-            onClick={() => {
-              if (widgetsLive("senderMarketing")) fillDraft("Yes, sounds good!");
-            }}
-          />
-          <QuickChip
-            label="No, thanks."
-            disabled={!widgetsLive("senderMarketing")}
-            onClick={() => {
-              if (widgetsLive("senderMarketing")) fillDraft("No, thanks.");
-            }}
-          />
-        </ActiveStepChips>
-      );
-    }
-
-    if (anchor === "receiverDeliveryUpdates") {
-      return (
-        <ActiveStepChips step="receiverDeliveryUpdates">
-          <QuickChip
-            label="Yes, keep me updated!"
-            disabled={!widgetsLive("receiverDeliveryUpdates")}
-            onClick={() => {
-              if (widgetsLive("receiverDeliveryUpdates")) {
-                fillDraft("Yes, keep me updated!");
-              }
-            }}
-          />
-          <QuickChip
-            label="No, thanks."
-            disabled={!widgetsLive("receiverDeliveryUpdates")}
-            onClick={() => {
-              if (widgetsLive("receiverDeliveryUpdates")) {
-                fillDraft("No, thanks.");
-              }
-            }}
-          />
-        </ActiveStepChips>
-      );
     }
 
     if (anchor === "receiver") {
@@ -2675,103 +3124,64 @@ Pop a number under VALUE, or add it to your message (e.g. $80), when you're read
     }
 
     if (anchor === "review" && widgetsLive("review")) {
-      if (!reviewShowsPricing) {
-        return (
-          <ActiveStepChips step="review">
-            <QuickChip
-              label="Show price summary"
-              onClick={() => fillDraft("Show price summary")}
-            />
-          </ActiveStepChips>
-        );
-      }
       return (
-        <>
-          <AiBookingSummaryWidget
-            summary={bookingSummary}
-            priceOnly
-            disabled={!widgetsLive("review")}
+        <ActiveStepChips step="review">
+          <QuickChip
+            label={CONFIRM_PARTIES_CHANGE_CHIP}
+            onClick={remindReviewChangeSomething}
           />
-          <ActiveStepChips step="review" className="mt-2">
-            <QuickChip
-              label="Continue to payment"
-              onClick={() => fillDraft("Continue to payment")}
-            />
-          </ActiveStepChips>
-        </>
+          <QuickChip
+            label="Continue to payment"
+            onClick={() => fillDraft("Continue to payment")}
+          />
+        </ActiveStepChips>
       );
     }
 
-    if (anchor === "confirmTerms") {
+    if (anchor === "confirmTerms" && widgetsLive("confirmTerms")) {
+      if (dangerousContains) return null;
       if (termsDeclined) {
         return (
-          <TermsDeclineRecoveryButtons
-            disabled={!widgetsLive("confirmTerms")}
-            onAgreeNow={() => {
-              if (widgetsLive("confirmTerms")) agreeToTerms();
-            }}
-            onCancel={onExit}
-          />
+          <ActiveStepChips step="confirmTerms">
+            <QuickChip
+              label="I agree now"
+              disabled={!widgetsLive("confirmTerms")}
+              onClick={() => {
+                if (widgetsLive("confirmTerms")) agreeToTerms();
+              }}
+            />
+            <QuickChip
+              label="Cancel booking"
+              disabled={!widgetsLive("confirmTerms")}
+              onClick={onExit}
+            />
+          </ActiveStepChips>
         );
       }
       return (
-        <>
-          <div className="space-y-2.5">
-            <TermsAgreementCard />
-            <TermsChoiceButtons
-              disabled={!widgetsLive("confirmTerms")}
-              onAgree={() => {
-                if (widgetsLive("confirmTerms")) agreeToTerms();
-              }}
-              onDecline={() => {
-                if (widgetsLive("confirmTerms")) declineToTerms();
-              }}
-            />
-          </div>
-          <ActiveStepChips step="confirmTerms" className="mt-2" />
-        </>
-      );
-    }
-
-    if (anchor === "confirmDangerous") {
-      if (dangerousContains) return null;
-      return (
-        <>
-          <div className="space-y-2.5">
-            <DangerousGoodsCard
-              selected={noDangerousHighlight}
-              disabled={!widgetsLive("confirmDangerous")}
-              onToggle={() => setNoDangerousHighlight((v) => !v)}
-            />
-            <DangerousChoiceButtons
-              disabled={!widgetsLive("confirmDangerous")}
-              onConfirm={() => {
-                if (widgetsLive("confirmDangerous")) confirmNoDangerous();
-              }}
-              onContains={() => {
-                if (widgetsLive("confirmDangerous")) reportDangerousGoods();
-              }}
-            />
-          </div>
-          <ActiveStepChips step="confirmDangerous" className="mt-2" />
-        </>
-      );
-    }
-
-    if (anchor === "confirmMarketing") {
-      return (
-        <>
-          <MarketingChoiceButtons
-            disabled={!widgetsLive("confirmMarketing")}
-            onYes={() => {
-              if (widgetsLive("confirmMarketing")) completeMarketing(true);
-            }}
-            onNo={() => {
-              if (widgetsLive("confirmMarketing")) completeMarketing(false);
+        <ActiveStepChips step="confirmTerms">
+          <QuickChip
+            label="I agree & confirm"
+            disabled={!widgetsLive("confirmTerms")}
+            onClick={() => {
+              if (widgetsLive("confirmTerms")) completePayConfirmations();
             }}
           />
-          <ActiveStepChips step="confirmMarketing" className="mt-2" />
-        </>
+          <QuickChip
+            label="I don't agree"
+            disabled={!widgetsLive("confirmTerms")}
+            onClick={() => {
+              if (widgetsLive("confirmTerms")) declineToTerms();
+            }}
+          />
+          <QuickChip
+            label="It does contain some"
+            disabled={!widgetsLive("confirmTerms")}
+            onClick={() => {
+              if (widgetsLive("confirmTerms")) reportDangerousGoods();
+            }}
+          />
+        </ActiveStepChips>
       );
     }
 
@@ -2903,20 +3313,6 @@ Pop a number under VALUE, or add it to your message (e.g. $80), when you're read
                     )}
                   </BotTurn>
                 )}
-                {message.role === "bot" &&
-                message.anchor === "confirmDangerous" &&
-                lastTypedBotId !== message.id &&
-                phaseIndex(phase) > phaseIndex("confirmDangerous") &&
-                !dangerousContains ? (
-                  <DangerousGoodsLockedCard />
-                ) : null}
-                {message.role === "bot" &&
-                message.anchor === "confirmTerms" &&
-                lastTypedBotId !== message.id &&
-                phaseIndex(phase) > phaseIndex("confirmTerms") &&
-                !termsDeclined ? (
-                  <TermsAgreementCard locked />
-                ) : null}
                 {message.role === "bot" &&
                 message.anchor === "intake" &&
                 lastTypedBotId !== message.id &&

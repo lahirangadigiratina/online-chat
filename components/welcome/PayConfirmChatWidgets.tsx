@@ -24,6 +24,60 @@ export function PayConfirmCircleMark({ selected }: { selected: boolean }) {
   return <span className="h-5 w-5 shrink-0 rounded-full border-2 border-neutral-300" />;
 }
 
+function TermsPolicyLinks() {
+  return (
+    <>
+      <span className="font-semibold text-[#C44717] underline underline-offset-2">
+        Terms &amp; Conditions
+      </span>{" "}
+      and{" "}
+      <span className="font-semibold text-[#C44717] underline underline-offset-2">
+        Privacy Policy
+      </span>
+    </>
+  );
+}
+
+/** Inline copy for bot bubbles (AI booking chat). */
+export function TermsAgreementMessage() {
+  return (
+    <span className="block whitespace-pre-line text-[15px] leading-snug text-[#0B1B32]">
+      {`Before you pay, a few quick confirmations. 😊\n\nDo you agree to our `}
+      <TermsPolicyLinks />?
+    </span>
+  );
+}
+
+/** Terms + dangerous goods intro (AI booking chat). */
+export function PayConfirmationsMessage() {
+  return (
+    <span className="block text-[15px] leading-snug text-[#0B1B32]">
+      Almost there — before you pay, please confirm both below. 😊
+    </span>
+  );
+}
+
+/** Terms + dangerous goods cards in a single bot bubble. */
+export function PayConfirmationsContent() {
+  return (
+    <div className="space-y-3">
+      <PayConfirmationsMessage />
+      <TermsAgreementCard />
+      <div className="flex w-full items-start gap-3 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+        <PayConfirmCircleMark selected={false} />
+        <span className="min-w-0">
+          <span className="block text-[15px] font-bold text-[#0B1B32]">
+            No dangerous goods
+          </span>
+          <span className="mt-1 block text-sm leading-snug text-neutral-500">
+            I confirm this parcel does not contain prohibited or dangerous goods.
+          </span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export function TermsAgreementCard({ locked }: { locked?: boolean }) {
   return (
     <div
@@ -33,15 +87,7 @@ export function TermsAgreementCard({ locked }: { locked?: boolean }) {
     >
       <PayConfirmCircleMark selected={!!locked} />
       <span className="min-w-0 text-[15px] leading-snug text-[#0B1B32]">
-        I agree to the{" "}
-        <span className="font-semibold text-[#C44717] underline underline-offset-2">
-          Terms &amp; Conditions
-        </span>{" "}
-        and{" "}
-        <span className="font-semibold text-[#C44717] underline underline-offset-2">
-          Privacy Policy
-        </span>
-        .
+        I agree to the <TermsPolicyLinks />.
       </span>
     </div>
   );
@@ -108,6 +154,15 @@ export function TermsDeclineRecoveryButtons({
         Cancel booking
       </button>
     </div>
+  );
+}
+
+/** Inline copy for bot bubbles (AI booking chat). */
+export function DangerousGoodsMessage() {
+  return (
+    <span className="block whitespace-pre-line text-[15px] leading-snug text-[#0B1B32]">
+      {`One more thing before payment. 😊\n\nCan you confirm your parcel doesn't contain any prohibited or dangerous goods?`}
+    </span>
   );
 }
 
@@ -186,34 +241,47 @@ export function DangerousChoiceButtons({
   );
 }
 
-export function MarketingChoiceButtons({
+export function PayConfirmationsButtons({
   disabled,
-  onYes,
-  onNo,
+  onAgreeAndConfirm,
+  onDeclineTerms,
+  onContainsDangerous,
 }: {
   disabled?: boolean;
-  onYes: () => void;
-  onNo: () => void;
+  onAgreeAndConfirm: () => void;
+  onDeclineTerms: () => void;
+  onContainsDangerous: () => void;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-2.5">
+    <div className="space-y-2.5">
       <button
         type="button"
         disabled={disabled}
-        onClick={onYes}
-        className="rounded-full py-3 text-[15px] font-bold text-white transition active:scale-[0.99] disabled:opacity-50"
+        onClick={onAgreeAndConfirm}
+        className="w-full rounded-full py-3.5 text-[15px] font-bold text-white transition active:scale-[0.99] disabled:opacity-50"
         style={{ backgroundColor: PGO_ORANGE }}
       >
-        Yes please
+        I agree &amp; confirm
       </button>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={onNo}
-        className="rounded-full border border-neutral-300 bg-white py-3 text-[15px] font-bold text-[#0B1B32] transition active:scale-[0.99] disabled:opacity-50"
-      >
-        No thanks
-      </button>
+      <div className="grid grid-cols-2 gap-2.5">
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={onDeclineTerms}
+          className="rounded-full border border-neutral-300 bg-white py-3 text-[15px] font-bold text-[#0B1B32] transition active:scale-[0.99] disabled:opacity-50"
+        >
+          I don&apos;t agree
+        </button>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={onContainsDangerous}
+          className="rounded-full border border-[#C44717] bg-white py-3 text-[15px] font-bold text-[#0B1B32] transition active:scale-[0.99] disabled:opacity-50"
+        >
+          It does contain some
+        </button>
+      </div>
     </div>
   );
 }
+

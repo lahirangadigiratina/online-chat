@@ -1128,7 +1128,6 @@ export type BookingConfirmedDetails = {
   infoPrimaryAccent: boolean;
   infoSecondary: string;
   receiptEmail: string;
-  primaryActionLabel: string;
 };
 
 function itemSubjectForBookedMessage(messages: ChatMessage[]): {
@@ -1161,7 +1160,6 @@ export function buildBookingConfirmedDetails(
   const paymentMethod = options?.paymentMethod ?? "card";
 
   const receiverName = receiverFirstNameFromThread(messages);
-  const { subject, verb } = itemSubjectForBookedMessage(messages);
 
   let receiver = { ...DEFAULT_PARSED_RECEIVER };
   for (const id of RECEIVER_DETAILS_MESSAGE_IDS) {
@@ -1194,17 +1192,15 @@ export function buildBookingConfirmedDetails(
   if (paymentMethod === "store") {
     return {
       total: summary.total,
-      statusBadge: `Booked · ${summary.total} to pay in store`,
+      statusBadge: `Booked · ${summary.total} to pay at counter`,
       badgeVariant: "storeBooked",
-      bookedMessage:
-        "Booked! Take it to any PARCELPOINT by [cut-off time]. Show this barcode at the counter and pay",
+      bookedMessage: `Booked! Hand your parcel over the counter and show this barcode. Pay ${summary.total} by EFTPOS or cash when you're ready — we'll print and attach the label.`,
       barcodeCaption: "[BOOKING REF]",
       infoSectionTitle: "Booking ref",
       infoPrimary: `${summary.total} due in store`,
       infoPrimaryAccent: true,
       infoSecondary: serviceLine,
       receiptEmail,
-      primaryActionLabel: "Save barcode",
     };
   }
 
@@ -1212,13 +1208,12 @@ export function buildBookingConfirmedDetails(
     total: summary.total,
     statusBadge: `✓ Paid ${summary.total} by card`,
     badgeVariant: "cardPaid",
-    bookedMessage: `Booked! 🥳 The ${subject} ${verb} on their way to ${receiverName}. Drop it at any PARCELPOINT by [cut-off time] — just show this barcode at the counter, no printer needed.`,
+    bookedMessage: `Booked! 🥳 Payment's done. Show this barcode at the counter and hand your parcel over — we'll label it and send it to ${receiverName}. It hasn't been sent yet; that happens once you've handed it to us.`,
     barcodeCaption: "[TRACKING ID]",
     infoSectionTitle: "Tracking",
     infoPrimary: destinationLine,
     infoPrimaryAccent: false,
     infoSecondary: serviceLine,
     receiptEmail,
-    primaryActionLabel: "Label PDF",
   };
 }

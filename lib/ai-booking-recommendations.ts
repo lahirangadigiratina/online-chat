@@ -225,12 +225,17 @@ export function buildAiRecommendation(
 
 export type AiBookingDemo = "gift80" | "dress400";
 
-export type AiBookingStarter = "cost" | "size" | "packaging";
+export type AiBookingStarter =
+  | "cost"
+  | "size"
+  | "packaging"
+  | "valueHelp";
 
 const STARTER_PREFILL: Record<AiBookingStarter, string> = {
   cost: "How much will it cost to send a Satchel, gift, $80 from West End to Brisbane?",
   size: "Help me choose a size — small gift, $80 from West End to Brisbane",
   packaging: "I need store packaging for my parcel",
+  valueHelp: "",
 };
 
 export function aiBookingStarterPrefill(starter: AiBookingStarter): string {
@@ -296,7 +301,6 @@ export function buildAiBookingConfirmedDetails(options: {
   infoPrimaryAccent: boolean;
   infoSecondary: string;
   receiptEmail: string;
-  primaryActionLabel: string;
 } {
   const totalStr = formatAiMoney(options.total);
   const destinationLine = options.suburb
@@ -304,34 +308,30 @@ export function buildAiBookingConfirmedDetails(options: {
     : "To delivery address";
   const serviceLine = `${options.sizeLabel} · PARCELPOINT — Door`;
   const email = options.senderEmail || "your email on file";
-  const { subject, verb } = parcelSubjectFromIntake(options.intakeLine ?? "");
-
   if (options.paymentMethod === "store") {
     return {
       variant: "store" as const,
-      statusBadge: `Booked · ${totalStr} to pay in store`,
-      bookedMessage: `Booked! Take it to any PARCELPOINT by [cut-off time]. Show this barcode at the counter and pay ${totalStr} by EFTPOS or cash — they'll print and attach the label.`,
+      statusBadge: `Booked · ${totalStr} to pay at counter`,
+      bookedMessage: `Booked! Hand your parcel over the counter and show this barcode. Pay ${totalStr} by EFTPOS or cash when you're ready — we'll print and attach the label.`,
       barcodeCaption: "[BOOKING REF]",
       infoSectionTitle: "Booking ref",
       infoPrimary: `${totalStr} due in store`,
       infoPrimaryAccent: true,
       infoSecondary: serviceLine,
       receiptEmail: email,
-      primaryActionLabel: "Save barcode",
     };
   }
 
   return {
     variant: "card" as const,
     statusBadge: `✓ Paid ${totalStr} by card`,
-    bookedMessage: `Booked! 🎉 The ${subject} ${verb} on their way to ${options.receiverName}. Drop it at any PARCELPOINT by [cut-off time] — just show this barcode at the counter, no printer needed.`,
+    bookedMessage: `Booked! 🎉 Payment's done. Show this barcode at the counter and hand your parcel over — we'll label it and send it to ${options.receiverName}. It hasn't been sent yet; that happens once you've handed it to us.`,
     barcodeCaption: "[TRACKING ID]",
     infoSectionTitle: "Tracking",
     infoPrimary: destinationLine,
     infoPrimaryAccent: false,
     infoSecondary: serviceLine,
     receiptEmail: email,
-    primaryActionLabel: "Label PDF",
   };
 }
 

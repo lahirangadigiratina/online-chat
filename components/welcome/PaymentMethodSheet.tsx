@@ -1,6 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import {
+  OnlinePaymentSubOptions,
+  type OnlinePaySubMethod,
+} from "./OnlinePaymentMethods";
 
 const PGO_ORANGE = "#C44717";
 
@@ -99,6 +103,7 @@ export function PaymentMethodSheet({
   onConfirm,
 }: Props) {
   const [method, setMethod] = useState<PayMethod>("card");
+  const [onlineSub, setOnlineSub] = useState<OnlinePaySubMethod>("card");
 
   if (!open) return null;
 
@@ -150,32 +155,48 @@ export function PaymentMethodSheet({
         </h2>
 
         <div className="mt-3 flex flex-col gap-2.5">
-          <button
-            type="button"
-            onClick={() => setMethod("card")}
-            className={`flex w-full items-center gap-3 rounded-2xl border p-4 text-left transition ${
+          <div
+            className={`w-full rounded-2xl border transition ${
               method === "card"
                 ? "border-2 border-[#C44717] bg-[#FFF8F4]"
                 : "border border-neutral-200 bg-white"
             }`}
           >
-            <span
-              className={
-                method === "card" ? "text-[#C44717]" : "text-neutral-400"
-              }
+            <button
+              type="button"
+              onClick={() => {
+                setMethod("card");
+                setOnlineSub("card");
+              }}
+              className="flex w-full items-center gap-3 p-4 text-left"
             >
-              <CardIcon />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[15px] font-bold text-[#0B1B32]">
-                Pay online by card
+              <span
+                className={
+                  method === "card" ? "text-[#C44717]" : "text-neutral-400"
+                }
+              >
+                <CardIcon />
               </span>
-              <span className="mt-0.5 block text-sm text-neutral-500">
-                Visa or Mastercard · label ready straight away
+              <span className="min-w-0 flex-1">
+                <span className="block text-[15px] font-bold text-[#0B1B32]">
+                  Pay online
+                </span>
+                <span className="mt-0.5 block text-sm text-neutral-500">
+                  Card, Google Pay or Apple Pay · label ready straight away
+                </span>
               </span>
-            </span>
-            <RadioMark selected={method === "card"} />
-          </button>
+              <RadioMark selected={method === "card"} />
+            </button>
+            {method === "card" ? (
+              <div className="px-4 pb-4">
+                <OnlinePaymentSubOptions
+                  selected={onlineSub}
+                  onSelectCard={() => setOnlineSub("card")}
+                  compact
+                />
+              </div>
+            ) : null}
+          </div>
 
           <button
             type="button"
@@ -198,7 +219,7 @@ export function PaymentMethodSheet({
                 Pay in store
               </span>
               <span className="mt-0.5 block text-sm text-neutral-500">
-                EFTPOS or cash at the PARCELPOINT when you drop it off
+                EFTPOS or cash at the counter when you hand over your parcel
               </span>
             </span>
             <RadioMark selected={method === "store"} />

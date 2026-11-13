@@ -17,18 +17,24 @@ function AiBookingContent() {
     raw === "gift80" || raw === "dress400" ? raw : null;
   const starterRaw = params.get("starter");
   const initialStarter: AiBookingStarter | null =
-    starterRaw === "cost" || starterRaw === "size" || starterRaw === "packaging"
+    starterRaw === "cost" ||
+    starterRaw === "size" ||
+    starterRaw === "packaging" ||
+    starterRaw === "valueHelp"
       ? starterRaw
       : null;
   const starterPrefill = initialStarter
     ? aiBookingStarterPrefill(initialStarter)
     : null;
+  const initialAutoSubmitMessage = params.get("message")?.trim() || null;
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
       <AiAssistedBookingFlow
         initialDemo={initialDemo}
+        initialStarter={initialStarter}
         initialComposerPrefill={starterPrefill}
+        initialAutoSubmitMessage={initialAutoSubmitMessage}
         onExit={() => router.push("/")}
       />
     </div>

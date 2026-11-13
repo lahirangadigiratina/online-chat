@@ -47,21 +47,23 @@ export function parseDeclaredValueDollars(text: string): number {
   return fallback ? Number(fallback[1]) : 0;
 }
 
-function inferSizeIdFromText(lower: string, labelHint?: string): AiSizeId {
-  const fromLabel = labelHint ? sizeIdFromLabel(labelHint) : null;
-  if (fromLabel) return fromLabel;
-  if (lower.includes("shoe") || lower.includes("dress") || lower.includes("5kg")) {
-    return "shoebox";
+/** Default declared value when voice-style lines omit dollars (e.g. shoes to mum). */
+export function inferConversationalDeclaredValue(text: string): number {
+  const trimmed = text.trim();
+  if (!trimmed || parseDeclaredValueDollars(trimmed) > 0) return 0;
+  const lower = trimmed.toLowerCase();
+  if (/\b(pair of )?shoes?\b/.test(lower)) return 80;
+  if (/\bgift\b/.test(lower)) return 80;
+  if (
+    /\b(send|sending)\b/.test(lower) &&
+    /\b(mum|mom|mother|dad|father|family)\b/.test(lower)
+  ) {
+    return 80;
   }
-  if (lower.includes("brief")) return "briefcase";
-  if (lower.includes("carry")) return "carryon";
-  if (lower.includes("satchel") || lower.includes("1kg") || lower.includes("1 kg")) {
-    return "satchel";
-  }
-  return "satchel";
+  return 0;
 }
 
-export function parseIntakeMessage(text: string): {
+function parseStructuredOrDollarIntake(text: string): {
   sizeId: AiSizeId;
   value: number;
   suburb: string;
@@ -119,6 +121,64 @@ export function parseIntakeMessage(text: string): {
   return { sizeId, value, suburb };
 }
 
+export function parseConversationalIntakeMessage(text: string): {
+  sizeId: AiSizeId;
+  value: number;
+  suburb: string;
+} | null {
+  const trimmed = normalizeIntakeText(text);
+  if (!trimmed) return null;
+
+  const draft = parseIntakeDraftFields(text);
+  const declared = parseDeclaredValueDollars(trimmed);
+  const value = declared > 0 ? declared : inferConversationalDeclaredValue(trimmed);
+  if (value <= 0 || !draft.sizeId || draft.suburb.trim().length < 2) return null;
+
+  return {
+    sizeId: draft.sizeId,
+    value,
+    suburb: draft.suburb.trim(),
+  };
+}
+
+/** Pick up drop-off / sender area from natural language (e.g. Parramatta). */
+export function parseDropOffOriginHint(text: string): string | null {
+  const trimmed = text.trim();
+  const dropOff = trimmed.match(
+    /\bdrop (?:it |them )?off\b[^.!?]*\bnear\b[^.!?]*\bin\s+([A-Za-z][\w\s'-]{2,28})(?:[.!?]|$)/i,
+  );
+  if (dropOff?.[1]?.trim()) return dropOff[1].trim();
+  const fromArea = trimmed.match(
+    /\bfrom\s+([A-Za-z][\w\s'-]{2,28})(?:\s+to\b|[.!?]|$)/i,
+  );
+  if (fromArea?.[1]?.trim()) return fromArea[1].trim();
+  return null;
+}
+
+function inferSizeIdFromText(lower: string, labelHint?: string): AiSizeId {
+  const fromLabel = labelHint ? sizeIdFromLabel(labelHint) : null;
+  if (fromLabel) return fromLabel;
+  if (lower.includes("shoe") || lower.includes("dress") || lower.includes("5kg")) {
+    return "shoebox";
+  }
+  if (lower.includes("brief")) return "briefcase";
+  if (lower.includes("carry")) return "carryon";
+  if (lower.includes("satchel") || lower.includes("1kg") || lower.includes("1 kg")) {
+    return "satchel";
+  }
+  return "satchel";
+}
+
+export function parseIntakeMessage(text: string): {
+  sizeId: AiSizeId;
+  value: number;
+  suburb: string;
+} | null {
+  const structuredOrDollar = parseStructuredOrDollarIntake(text);
+  if (structuredOrDollar) return structuredOrDollar;
+  return parseConversationalIntakeMessage(text);
+}
+
 function parseSizeIdHint(lower: string): AiSizeId | undefined {
   if (/\bshoe\s*box\b|\bshoebox\b|\bshoe\b|\bdress\b|\b5\s*kg\b/i.test(lower)) {
     return "shoebox";
@@ -154,7 +214,32 @@ function parseSuburbHint(trimmed: string, lower: string): string | undefined {
     }
   }
 
-  const toMatch = trimmed.match(/\bto\s+(.+)$/i);
+  const toRelativeInCity = trimmed.match(
+    /\bto\s+(?:my\s+)?(?:mum|mom|mother|dad|father|parents?)\s+in\s+([A-Za-z][\w\s'-]{2,24})/i,
+  );
+  if (toRelativeInCity?.[1]?.trim()) {
+    const place = toRelativeInCity[1].trim();
+    for (const city of cities) {
+      if (place.toLowerCase().startsWith(city)) {
+        return city === "gold coast"
+          ? "Gold Coast"
+          : city.replace(/\b\w/g, (c) => c.toUpperCase());
+      }
+    }
+    return place;
+  }
+
+  const inCity = trimmed.match(
+    /\bin\s+(brisbane|melbourne|sydney|perth|adelaide|hobart|darwin|canberra|gold coast)\b/i,
+  );
+  if (inCity?.[1]) {
+    const city = inCity[1].toLowerCase();
+    return city === "gold coast"
+      ? "Gold Coast"
+      : city.replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+
+  const toMatch = trimmed.match(/\bto\s+([A-Za-z][\w\s'-]{2,24})(?:[.!?]|$)/i);
   if (toMatch?.[1]?.trim()) return toMatch[1].trim();
   return undefined;
 }
@@ -168,7 +253,7 @@ export function parseIntakeDraftFields(text: string): {
   const trimmed = normalizeIntakeText(text.trim());
   if (!trimmed) return { ...EMPTY_INTAKE_DRAFT };
 
-  const full = parseIntakeMessage(text);
+  const full = parseStructuredOrDollarIntake(text);
   if (full) {
     return {
       sizeId: full.sizeId,
@@ -552,7 +637,7 @@ export function intakeDraftMissingLabels(draft: {
 
 export function buildIntakeFollowUpPrompt(missing: string[]): string {
   const list = formatMissingDetailList(missing);
-  return `Almost there! 😊 I still need your ${list}. Fill in the form below or add them to your message when you're ready.`;
+  return `Almost there! 😊 I still need your ${list}. Fill in the form below or add them in your next message, then send.`;
 }
 
 /** Prefer street/suburb from receiver details; fall back to intake destination. */
@@ -563,12 +648,12 @@ export function mergeReceiverDraftWithLine(
 ): ReceiverContactDraft {
   const parsed = contactDraftFromLine(line);
   return {
-    firstName: draft.firstName.trim() || parsed.firstName,
-    lastName: draft.lastName.trim() || parsed.lastName,
-    email: draft.email.trim() || parsed.email,
-    mobile: draft.mobile.trim() || parsed.mobile,
-    address: draft.address.trim() || parsed.address,
-    businessName: draft.businessName.trim() || parsed.businessName,
+    firstName: parsed.firstName.trim() || draft.firstName,
+    lastName: parsed.lastName.trim() || draft.lastName,
+    email: parsed.email.trim() || draft.email,
+    mobile: parsed.mobile.trim() || draft.mobile,
+    address: parsed.address.trim() || draft.address,
+    businessName: parsed.businessName.trim() || draft.businessName,
   };
 }
 
@@ -578,11 +663,11 @@ export function mergeSenderDraftWithLine(
 ): SenderContactDraft {
   const parsed = senderDraftFromLine(line);
   return {
-    firstName: draft.firstName.trim() || parsed.firstName,
-    lastName: draft.lastName.trim() || parsed.lastName,
-    email: draft.email.trim() || parsed.email,
-    mobile: draft.mobile.trim() || parsed.mobile,
-    businessName: draft.businessName.trim() || parsed.businessName,
+    firstName: parsed.firstName.trim() || draft.firstName,
+    lastName: parsed.lastName.trim() || draft.lastName,
+    email: parsed.email.trim() || draft.email,
+    mobile: parsed.mobile.trim() || draft.mobile,
+    businessName: parsed.businessName.trim() || draft.businessName,
   };
 }
 
@@ -597,8 +682,10 @@ export function deliveryDestinationLabel(
 }
 
 export function isAffirmative(text: string) {
+  const t = text.trim();
+  if (/^yes,?\s*continue\b/i.test(t)) return true;
   return /^(yes|yep|yeah|ok|okay|looks good|proceed|continue|complete|confirm)/i.test(
-    text.trim(),
+    t,
   );
 }
 

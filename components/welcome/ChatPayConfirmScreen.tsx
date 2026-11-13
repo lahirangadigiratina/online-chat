@@ -89,27 +89,44 @@ export function ChatPayConfirmScreen({
   );
   const [termsIntroReady, setTermsIntroReady] = useState(false);
   const [declineReady, setDeclineReady] = useState(false);
-  const [noDangerousAccepted, setNoDangerousAccepted] = useState(false);
   const [dangerousStep, setDangerousStep] = useState<
     "pending" | "confirmed" | "contains"
   >("pending");
-  const [dangerousIntroReady, setDangerousIntroReady] = useState(false);
-  const [marketingStep, setMarketingStep] = useState<
-    "pending" | "yes" | "no"
-  >("pending");
-  const [marketingIntroReady, setMarketingIntroReady] = useState(false);
 
-  const showDangerousStep = termsStep === "agreed";
-  const showMarketingStep =
-    dangerousStep === "confirmed" && marketingStep === "pending";
+  const termsCard = (locked: boolean) => (
+    <div
+      className={`flex w-full items-start gap-3 rounded-2xl border bg-white p-4 shadow-sm ${
+        locked ? "border-2 border-[#C44717]" : "border-neutral-200"
+      }`}
+    >
+      <CircleMark selected={locked} />
+      <span className="min-w-0 text-[15px] leading-snug text-[#0B1B32]">
+        I agree to the{" "}
+        <a
+          href="#terms"
+          className="font-semibold text-[#C44717] underline underline-offset-2"
+        >
+          Terms &amp; Conditions
+        </a>{" "}
+        and{" "}
+        <a
+          href="#privacy"
+          className="font-semibold text-[#C44717] underline underline-offset-2"
+        >
+          Privacy Policy
+        </a>
+        .
+      </span>
+    </div>
+  );
 
   const dangerousGoodsCard = (locked: boolean) => (
     <div
       className={`flex w-full items-start gap-3 rounded-2xl border bg-white p-4 shadow-sm ${
-        locked ? "border-2 border-[#C44717]" : ""
+        locked ? "border-2 border-[#C44717]" : "border-neutral-200"
       }`}
     >
-      <CircleMark selected={locked || noDangerousAccepted} />
+      <CircleMark selected={locked} />
       <span className="min-w-0">
         <span className="block text-[15px] font-bold text-[#0B1B32]">
           No dangerous goods
@@ -121,8 +138,9 @@ export function ChatPayConfirmScreen({
     </div>
   );
 
-  const completeMarketing = (choice: "yes" | "no") => {
-    setMarketingStep(choice);
+  const completeConfirmations = () => {
+    setTermsStep("agreed");
+    setDangerousStep("confirmed");
     setPaymentOpen(true);
   };
 
@@ -134,70 +152,54 @@ export function ChatPayConfirmScreen({
         <div className="mx-auto flex max-w-lg flex-col gap-3">
           <ChatTranscript messages={priorThread} />
           <BotBubble onReady={() => setTermsIntroReady(true)}>
-            Before you pay, a few quick confirmations. First — do you agree to
-            our terms?
+            Almost there — before you pay, please confirm both: you agree to our{" "}
+            <a
+              href="#terms"
+              className="font-semibold text-[#C44717] underline underline-offset-2"
+            >
+              Terms &amp; Conditions
+            </a>{" "}
+            and{" "}
+            <a
+              href="#privacy"
+              className="font-semibold text-[#C44717] underline underline-offset-2"
+            >
+              Privacy Policy
+            </a>
+            , and your parcel does not contain prohibited or dangerous goods.
           </BotBubble>
 
-          {termsIntroReady && (termsStep === "pending" || termsStep === "declined") ? (
-            <div className="flex w-full items-start gap-3 rounded-2xl border border-neutral-200 bg-white p-4 text-left shadow-sm">
-              <CircleMark selected={false} />
-              <span className="min-w-0 text-[15px] leading-snug text-[#0B1B32]">
-                I agree to the{" "}
-                <a
-                  href="#terms"
-                  className="font-semibold text-[#C44717] underline underline-offset-2"
-                >
-                  Terms &amp; Conditions
-                </a>{" "}
-                and{" "}
-                <a
-                  href="#privacy"
-                  className="font-semibold text-[#C44717] underline underline-offset-2"
-                >
-                  Privacy Policy
-                </a>
-                .
-              </span>
-            </div>
-          ) : termsIntroReady ? (
-            <div className="flex w-full items-start gap-3 rounded-2xl border-2 border-[#C44717] bg-white p-4 shadow-sm">
-              <CircleMark selected />
-              <span className="min-w-0 text-[15px] leading-snug text-[#0B1B32]">
-                I agree to the{" "}
-                <span className="font-semibold text-[#C44717] underline underline-offset-2">
-                  Terms &amp; Conditions
-                </span>{" "}
-                and{" "}
-                <span className="font-semibold text-[#C44717] underline underline-offset-2">
-                  Privacy Policy
-                </span>
-                .
-              </span>
-            </div>
-          ) : null}
-
-          {termsIntroReady && termsStep === "pending" ? (
-            <div className="grid grid-cols-2 gap-2.5">
+          {termsIntroReady &&
+          termsStep === "pending" &&
+          dangerousStep === "pending" ? (
+            <>
+              {termsCard(false)}
+              {dangerousGoodsCard(false)}
               <button
                 type="button"
-                onClick={() => {
-                  setTermsStep("agreed");
-                }}
-                className="rounded-full py-3 text-[15px] font-bold text-white transition active:scale-[0.99]"
+                onClick={completeConfirmations}
+                className="w-full rounded-full py-3.5 text-[15px] font-bold text-white transition active:scale-[0.99]"
                 style={{ backgroundColor: PGO_ORANGE }}
               >
-                I agree
+                I agree &amp; confirm
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setTermsStep("declined");
-                }}
-                className="rounded-full border border-neutral-300 bg-white py-3 text-[15px] font-bold text-[#0B1B32] transition active:scale-[0.99]"
-              >
-                I don&apos;t agree
-              </button>
-            </div>
+              <div className="grid grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setTermsStep("declined")}
+                  className="rounded-full border border-neutral-300 bg-white py-3 text-[15px] font-bold text-[#0B1B32] transition active:scale-[0.99]"
+                >
+                  I don&apos;t agree
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDangerousStep("contains")}
+                  className="rounded-full border border-[#C44717] bg-white py-3 text-[15px] font-bold text-[#0B1B32] transition active:scale-[0.99]"
+                >
+                  It does contain some
+                </button>
+              </div>
+            </>
           ) : null}
 
           {termsStep === "declined" ? (
@@ -225,7 +227,10 @@ export function ChatPayConfirmScreen({
                 <div className="grid w-full grid-cols-2 gap-2.5">
                   <button
                     type="button"
-                    onClick={() => setTermsStep("agreed")}
+                    onClick={() => {
+                      setTermsStep("pending");
+                      completeConfirmations();
+                    }}
                     className="w-full rounded-full py-3 text-[15px] font-bold text-white transition active:scale-[0.99]"
                     style={{ backgroundColor: PGO_ORANGE }}
                   >
@@ -243,106 +248,22 @@ export function ChatPayConfirmScreen({
             </>
           ) : null}
 
-          {showDangerousStep ? (
+          {dangerousStep === "confirmed" && termsStep === "agreed" ? (
             <>
-              <UserBubble>✓ I agree</UserBubble>
-              <BotBubble onReady={() => setDangerousIntroReady(true)}>
-                Thanks! Next — can you confirm there&apos;s nothing dangerous
-                inside?
+              <UserBubble>✓ I agree &amp; confirm</UserBubble>
+              {termsCard(true)}
+              {dangerousGoodsCard(true)}
+            </>
+          ) : null}
+
+          {dangerousStep === "contains" ? (
+            <>
+              <UserBubble>It does contain some</UserBubble>
+              <BotBubble>
+                We can&apos;t send dangerous or prohibited goods through
+                PARCELPOINT — tap back to change what&apos;s in the parcel, or
+                tell me what you&apos;re sending.
               </BotBubble>
-
-              {dangerousIntroReady && dangerousStep === "pending" ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setNoDangerousAccepted((value) => !value)}
-                    className={`flex w-full items-start gap-3 rounded-2xl border bg-white p-4 text-left shadow-sm transition ${
-                      noDangerousAccepted
-                        ? "border-2 border-[#C44717]"
-                        : "border border-neutral-200"
-                    }`}
-                  >
-                    <CircleMark selected={noDangerousAccepted} />
-                    <span className="min-w-0">
-                      <span className="block text-[15px] font-bold text-[#0B1B32]">
-                        No dangerous goods
-                      </span>
-                      <span className="mt-1 block text-sm leading-snug text-neutral-500">
-                        I confirm this parcel does not contain prohibited or
-                        dangerous goods.
-                      </span>
-                    </span>
-                  </button>
-
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setNoDangerousAccepted(true);
-                        setDangerousStep("confirmed");
-                      }}
-                      className="rounded-full py-3 text-[15px] font-bold text-white transition active:scale-[0.99]"
-                      style={{ backgroundColor: PGO_ORANGE }}
-                    >
-                      I confirm
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDangerousStep("contains");
-                        setNoDangerousAccepted(false);
-                      }}
-                      className="rounded-full border border-[#C44717] bg-white py-3 text-[15px] font-bold text-[#0B1B32] transition active:scale-[0.99]"
-                    >
-                      It does contain some
-                    </button>
-                  </div>
-                </>
-              ) : null}
-
-              {dangerousStep === "confirmed" ? (
-                <>
-                  {dangerousGoodsCard(true)}
-                  <UserBubble>✓ I confirm</UserBubble>
-                  <BotBubble onReady={() => setMarketingIntroReady(true)}>
-                    Last one, and it&apos;s optional — would you like marketing
-                    and promotional updates from PARCELPOINT?
-                  </BotBubble>
-                  {showMarketingStep && marketingIntroReady ? (
-                    <div className="grid grid-cols-2 gap-2.5">
-                      <button
-                        type="button"
-                        onClick={() => completeMarketing("yes")}
-                        className="rounded-full py-3 text-[15px] font-bold text-white transition active:scale-[0.99]"
-                        style={{ backgroundColor: PGO_ORANGE }}
-                      >
-                        Yes please
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => completeMarketing("no")}
-                        className="rounded-full border border-neutral-300 bg-white py-3 text-[15px] font-bold text-[#0B1B32] transition active:scale-[0.99]"
-                      >
-                        No thanks
-                      </button>
-                    </div>
-                  ) : null}
-                  {marketingStep === "yes" ? (
-                    <UserBubble>Yes please</UserBubble>
-                  ) : null}
-                  {marketingStep === "no" ? (
-                    <UserBubble>No thanks</UserBubble>
-                  ) : null}
-                </>
-              ) : null}
-
-              {dangerousStep === "contains" ? (
-                <BotBubble>
-                  We can&apos;t send dangerous or prohibited goods through
-                  PARCELPOINT — tap back to change what&apos;s in the parcel, or
-                  tell me what you&apos;re sending.
-                </BotBubble>
-              ) : null}
             </>
           ) : null}
         </div>

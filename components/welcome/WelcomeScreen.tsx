@@ -13,8 +13,12 @@ import {
   withParcelIntro,
 } from "./chatThread";
 import { ChatRouteScreen } from "./ChatRouteScreen";
-import { VoiceTalkScreen } from "./VoiceTalkScreen";
+import { VoiceTalkScreen, VOICE_DEMO_TRANSCRIPT } from "./VoiceTalkScreen";
 import type { AiBookingDemo, AiBookingStarter } from "@/lib/ai-booking-recommendations";
+
+/** Placeholder — marketing to supply final QR / first-visit hook. */
+const WELCOME_PARCEL_INTRO =
+  "You're in the right place to send a parcel. Tell us what you're sending and we'll walk you through the rest.";
 
 type AppScreen =
   | "welcome"
@@ -83,26 +87,6 @@ function PromptIcon() {
   );
 }
 
-function FormIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M8 3.75h5.4L18.25 8.4V20a1.25 1.25 0 0 1-1.25 1.25H8A1.25 1.25 0 0 1 6.75 20V5A1.25 1.25 0 0 1 8 3.75Z"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M13.2 3.9V8.2h4.4M9 12.2h6M9 15.4h6"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 function OptionCard({
   title,
   detail,
@@ -138,6 +122,11 @@ function OptionCard({
     prompt: "text-[#5C6570]",
     manual: "text-white/75",
   }[tone];
+  const recommendedBadgeClass = {
+    voice: "text-[#E4571A]",
+    prompt: "text-[#0B1B32]",
+    manual: "text-[#E4571A]",
+  }[tone];
 
   return (
     <button
@@ -152,7 +141,9 @@ function OptionCard({
           {icon}
         </span>
         {recommended ? (
-          <span className="rounded-full bg-white px-3 py-1 text-[11px] font-bold tracking-[0.08em] text-[#E4571A]">
+          <span
+            className={`rounded-full bg-white px-3 py-1 text-[11px] font-bold tracking-[0.08em] ${recommendedBadgeClass}`}
+          >
             RECOMMENDED
           </span>
         ) : null}
@@ -284,11 +275,9 @@ export function WelcomeScreen() {
           openChat("route");
         }}
         onStop={() => {
-          setLastSentMessage(
-            "I want to send a pair of shoes to my mum in Brisbane",
-          );
-          setReceiverSeed("voice");
-          setScreen("receiver");
+          const params = new URLSearchParams();
+          params.set("message", VOICE_DEMO_TRANSCRIPT);
+          router.push(`/ai-booking?${params.toString()}`);
         }}
       />
     );
@@ -1355,18 +1344,17 @@ export function WelcomeScreen() {
             className="h-[2.35rem] w-auto max-w-[min(17.5rem,88vw)] object-contain object-left"
           />
         </div>
-        <p className="mt-5 text-[15px] leading-snug text-[#6B7280]">
+        <h1 className="mt-5 text-[1.75rem] font-bold leading-[1.2] tracking-tight text-[#0B1B32] sm:text-[2rem]">
           Hi, I&apos;m PPGo
-        </p>
-        <h1 className="mt-2 text-[1.75rem] font-bold leading-[1.2] tracking-tight text-[#0B1B32] sm:text-[2rem]">
-          How do you want to start?
         </h1>
+        <p className="mt-3 max-w-md text-[15px] leading-snug text-[#5C6570] sm:text-[16px]">
+          {WELCOME_PARCEL_INTRO}
+        </p>
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-4 pb-8 sm:px-5">
         <OptionCard
           tone="voice"
-          recommended
           title="Speak to me"
           detail="Let's figure out what we are sending"
           icon={<MicIcon />}
@@ -1374,18 +1362,32 @@ export function WelcomeScreen() {
         />
         <OptionCard
           tone="prompt"
+          recommended
           title="Chat with me"
           detail="Tell me what you're sending — I'll help you"
           icon={<PromptIcon />}
           onClick={() => openAiBooking()}
         />
-        <OptionCard
-          tone="manual"
-          title="Standard booking form"
-          detail="Fill in a few details to arrange your parcel delivery"
-          icon={<FormIcon />}
-          onClick={() => setScreen("manual")}
-        />
+
+        <div className="mt-auto border-t border-neutral-200/90 pt-5">
+          <p className="px-1 text-center text-[13px] leading-snug text-neutral-500">
+            Prefer to type it all out?
+          </p>
+          <button
+            type="button"
+            onClick={() => setScreen("manual")}
+            className="mt-2 flex w-full items-center justify-center rounded-2xl border border-neutral-200 bg-white px-4 py-3.5 text-center shadow-sm transition active:scale-[0.99]"
+          >
+            <span className="min-w-0">
+              <span className="block text-[15px] font-semibold text-[#0B1B32]">
+                Standard booking form
+              </span>
+              <span className="mt-0.5 block text-[13px] leading-snug text-neutral-500">
+                Step-by-step fields if you prefer not to chat or speak
+              </span>
+            </span>
+          </button>
+        </div>
       </div>
     </div>
   );

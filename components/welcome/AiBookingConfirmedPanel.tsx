@@ -1,6 +1,7 @@
 "use client";
 
 import { BotBubble } from "./ChatTranscript";
+import { bookingEmailFollowUp } from "./bookingEmailCopy";
 
 export type AiBookingConfirmedDetails = {
   variant: "card" | "store";
@@ -12,7 +13,6 @@ export type AiBookingConfirmedDetails = {
   infoPrimaryAccent: boolean;
   infoSecondary: string;
   receiptEmail: string;
-  primaryActionLabel: string;
 };
 
 function BarcodePlaceholder() {
@@ -34,20 +34,6 @@ function BarcodePlaceholder() {
   );
 }
 
-function DownloadIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M12 3v12M8 11l4 4 4-4M5 21h14"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 function ClockIconSmall() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -63,21 +49,6 @@ function ClockIconSmall() {
   );
 }
 
-function ShareIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M12 16V4M12 4l-4 4M12 4l4 4M5 20h14"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-const PGO_ORANGE = "#C44717";
 const PGO_NAVY = "#0B1B32";
 
 export function AiBookingConfirmedPanel({
@@ -90,6 +61,7 @@ export function AiBookingConfirmedPanel({
   footer?: boolean;
 }) {
   const isStore = details.variant === "store";
+  const paymentMethod = isStore ? "store" : "card";
 
   return (
     <>
@@ -130,26 +102,8 @@ export function AiBookingConfirmedPanel({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2.5">
-        <button
-          type="button"
-          className="flex items-center justify-center gap-2 rounded-full py-3.5 text-sm font-bold text-white"
-          style={{ backgroundColor: PGO_ORANGE }}
-        >
-          <DownloadIcon />
-          {details.primaryActionLabel}
-        </button>
-        <button
-          type="button"
-          className="flex items-center justify-center gap-2 rounded-full border border-[#0B1B32] bg-white py-3.5 text-sm font-bold text-[#0B1B32]"
-        >
-          <ShareIcon />
-          Share
-        </button>
-      </div>
-
       <BotBubble>
-        I&apos;ve also emailed your receipt and booking to {details.receiptEmail}.
+        {bookingEmailFollowUp(details.receiptEmail, paymentMethod)}
       </BotBubble>
 
       {footer ? (
