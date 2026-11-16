@@ -3199,8 +3199,8 @@ export function AiAssistedBookingFlow({
             total={formatAiMoney(total)}
             selected={paymentHighlight}
             disabled={!widgetsLive("payment")}
-            onSelectOnline={() => submitDraft("Pay online")}
-            onSelectInStore={() => submitDraft("Pay in store")}
+            onSelectOnline={() => fillDraft("Pay online")}
+            onSelectInStore={() => fillDraft("Pay in store")}
           />
           <ActiveStepChips step="payment" className="mt-2" />
         </>
