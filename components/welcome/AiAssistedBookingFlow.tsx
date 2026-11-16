@@ -1664,6 +1664,17 @@ export function AiAssistedBookingFlow({
     if (phase === "intake" && !intakePendingQuote) {
       mergeIntakeDraftFromComposer(value);
     }
+    if (phase === "sender") {
+      setSenderDraft((prev) => mergeSenderDraftWithLine(prev, value));
+    } else if (phase === "receiver") {
+      setReceiverDraft((prev) => mergeReceiverDraftWithLine(prev, value));
+    } else if (phase === "confirmParties") {
+      if (confirmPartiesEditStep === "sender") {
+        setSenderDraft((prev) => mergeSenderDraftWithLine(prev, value));
+      } else if (confirmPartiesEditStep === "receiver") {
+        setReceiverDraft((prev) => mergeReceiverDraftWithLine(prev, value));
+      }
+    }
   };
 
   const fillDraft = (text: string) => {

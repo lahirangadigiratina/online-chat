@@ -86,16 +86,28 @@ function LockedValue({ value }: { value: string }) {
 
 const AU_MOBILE_PREFIX = "+61 4";
 
+function applyInputValue(
+  e: React.FormEvent<HTMLInputElement>,
+  apply: (value: string) => void,
+) {
+  apply(e.currentTarget.value);
+}
+
 function AuMobileField({
   locked,
   value,
   onChange,
+  autoComplete = "tel-national",
+  name,
 }: {
   locked?: boolean;
   value: string;
   onChange: (mobile: string) => void;
+  autoComplete?: string;
+  name?: string;
 }) {
   const localDisplay = formatAuMobileLocalDisplay(value);
+  const syncMobile = (raw: string) => onChange(buildAuMobileFromLocal(raw));
 
   return (
     <FieldFrame
@@ -114,11 +126,13 @@ function AuMobileField({
         <input
           type="tel"
           inputMode="numeric"
+          name={name}
           value={localDisplay}
-          onChange={(e) => onChange(buildAuMobileFromLocal(e.target.value))}
+          onChange={(e) => syncMobile(e.target.value)}
+          onInput={(e) => applyInputValue(e, syncMobile)}
           className={`${FIELD_INPUT} w-full`}
           placeholder="XX XXX XXX"
-          autoComplete="tel-national"
+          autoComplete={autoComplete}
           aria-label="Australian mobile number"
         />
       )}
@@ -138,8 +152,10 @@ export function AiSenderContactFormWidget({
   embedded?: boolean;
 }) {
   return (
-    <div
+    <form
       data-chat-form
+      autoComplete="on"
+      onSubmit={(e) => e.preventDefault()}
       className={
         embedded
           ? "pt-1"
@@ -153,11 +169,13 @@ export function AiSenderContactFormWidget({
           ) : (
             <input
               type="text"
+              name="sender-first-name"
               value={draft.firstName}
               onChange={(e) => onChange({ firstName: e.target.value })}
+              onInput={(e) => applyInputValue(e, (v) => onChange({ firstName: v }))}
               className={`${FIELD_INPUT} w-full`}
               placeholder="First name"
-              autoComplete="given-name"
+              autoComplete="billing given-name"
               aria-label="First name"
             />
           )}
@@ -171,11 +189,13 @@ export function AiSenderContactFormWidget({
           ) : (
             <input
               type="text"
+              name="sender-last-name"
               value={draft.lastName}
               onChange={(e) => onChange({ lastName: e.target.value })}
+              onInput={(e) => applyInputValue(e, (v) => onChange({ lastName: v }))}
               className={`${FIELD_INPUT} w-full`}
               placeholder="Last name"
-              autoComplete="family-name"
+              autoComplete="billing family-name"
               aria-label="Last name"
             />
           )}
@@ -189,11 +209,13 @@ export function AiSenderContactFormWidget({
           ) : (
             <input
               type="email"
+              name="sender-email"
               value={draft.email}
               onChange={(e) => onChange({ email: e.target.value })}
+              onInput={(e) => applyInputValue(e, (v) => onChange({ email: v }))}
               className={`${FIELD_INPUT} w-full`}
               placeholder="you@example.com"
-              autoComplete="email"
+              autoComplete="billing email"
               aria-label="Email"
             />
           )}
@@ -204,6 +226,8 @@ export function AiSenderContactFormWidget({
         <AuMobileField
           locked={locked}
           value={draft.mobile}
+          name="sender-mobile"
+          autoComplete="billing tel-national"
           onChange={(mobile) => onChange({ mobile })}
         />
       </FormSection>
@@ -216,18 +240,22 @@ export function AiSenderContactFormWidget({
             ) : (
               <input
                 type="text"
+                name="sender-organization"
                 value={draft.businessName}
                 onChange={(e) => onChange({ businessName: e.target.value })}
+                onInput={(e) =>
+                  applyInputValue(e, (v) => onChange({ businessName: v }))
+                }
                 className={`${FIELD_INPUT} w-full`}
                 placeholder="Optional"
-                autoComplete="organization"
+                autoComplete="billing organization"
                 aria-label="Business name (optional)"
               />
             )}
           </FieldFrame>
         </FormSection>
       ) : null}
-    </div>
+    </form>
   );
 }
 
@@ -241,8 +269,10 @@ export function AiReceiverContactFormWidget({
   onChange: (patch: Partial<ReceiverContactDraft>) => void;
 }) {
   return (
-    <div
+    <form
       data-chat-form
+      autoComplete="on"
+      onSubmit={(e) => e.preventDefault()}
       className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm"
     >
       <FormSection step="1" title="FIRST NAME">
@@ -252,11 +282,13 @@ export function AiReceiverContactFormWidget({
           ) : (
             <input
               type="text"
+              name="receiver-first-name"
               value={draft.firstName}
               onChange={(e) => onChange({ firstName: e.target.value })}
+              onInput={(e) => applyInputValue(e, (v) => onChange({ firstName: v }))}
               className={`${FIELD_INPUT} w-full`}
               placeholder="First name"
-              autoComplete="given-name"
+              autoComplete="shipping given-name"
               aria-label="First name"
             />
           )}
@@ -270,11 +302,13 @@ export function AiReceiverContactFormWidget({
           ) : (
             <input
               type="text"
+              name="receiver-last-name"
               value={draft.lastName}
               onChange={(e) => onChange({ lastName: e.target.value })}
+              onInput={(e) => applyInputValue(e, (v) => onChange({ lastName: v }))}
               className={`${FIELD_INPUT} w-full`}
               placeholder="Last name"
-              autoComplete="family-name"
+              autoComplete="shipping family-name"
               aria-label="Last name"
             />
           )}
@@ -285,6 +319,8 @@ export function AiReceiverContactFormWidget({
         <AuMobileField
           locked={locked}
           value={draft.mobile}
+          name="receiver-mobile"
+          autoComplete="shipping tel-national"
           onChange={(mobile) => onChange({ mobile })}
         />
       </FormSection>
@@ -296,11 +332,13 @@ export function AiReceiverContactFormWidget({
           ) : (
             <input
               type="email"
+              name="receiver-email"
               value={draft.email}
               onChange={(e) => onChange({ email: e.target.value })}
+              onInput={(e) => applyInputValue(e, (v) => onChange({ email: v }))}
               className={`${FIELD_INPUT} w-full`}
               placeholder="them@example.com"
-              autoComplete="email"
+              autoComplete="shipping email"
               aria-label="Email"
             />
           )}
@@ -320,11 +358,13 @@ export function AiReceiverContactFormWidget({
           ) : (
             <input
               type="text"
+              name="receiver-address"
               value={draft.address}
               onChange={(e) => onChange({ address: e.target.value })}
+              onInput={(e) => applyInputValue(e, (v) => onChange({ address: v }))}
               className={`${FIELD_INPUT} w-full`}
               placeholder="Street, suburb, state"
-              autoComplete="street-address"
+              autoComplete="shipping street-address"
               aria-label="Delivery address"
             />
           )}
@@ -339,17 +379,21 @@ export function AiReceiverContactFormWidget({
             ) : (
               <input
                 type="text"
+                name="receiver-organization"
                 value={draft.businessName}
                 onChange={(e) => onChange({ businessName: e.target.value })}
+                onInput={(e) =>
+                  applyInputValue(e, (v) => onChange({ businessName: v }))
+                }
                 className={`${FIELD_INPUT} w-full`}
                 placeholder="Optional"
-                autoComplete="organization"
+                autoComplete="shipping organization"
                 aria-label="Business name (optional)"
               />
             )}
           </FieldFrame>
         </FormSection>
       ) : null}
-    </div>
+    </form>
   );
 }

@@ -182,6 +182,7 @@ export function ChatFlowFooter({
           rows={1}
           value={input}
           onChange={(e) => onInputChange(e.target.value)}
+          onInput={(e) => onInputChange(e.currentTarget.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey && onSubmitMessage && canSend) {
               e.preventDefault();
