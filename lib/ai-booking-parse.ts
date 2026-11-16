@@ -465,6 +465,39 @@ export function senderDraftFromLine(text: string): SenderContactDraft {
   };
 }
 
+function formFieldValue(form: HTMLFormElement, name: string): string {
+  const el = form.querySelector<HTMLInputElement>(`[name="${CSS.escape(name)}"]`);
+  if (!el) return "";
+  return el.value.trim();
+}
+
+/** Read live input values (e.g. after browser autofill) into sender draft. */
+export function readSenderContactFromForm(form: HTMLFormElement): SenderContactDraft {
+  const mobileLocal = formFieldValue(form, "sender-mobile");
+  return {
+    firstName: formFieldValue(form, "sender-first-name"),
+    lastName: formFieldValue(form, "sender-last-name"),
+    email: formFieldValue(form, "sender-email"),
+    mobile: buildAuMobileFromLocal(mobileLocal),
+    businessName: formFieldValue(form, "sender-organization"),
+  };
+}
+
+/** Read live input values (e.g. after browser autofill) into receiver draft. */
+export function readReceiverContactFromForm(
+  form: HTMLFormElement,
+): ReceiverContactDraft {
+  const mobileLocal = formFieldValue(form, "receiver-mobile");
+  return {
+    firstName: formFieldValue(form, "receiver-first-name"),
+    lastName: formFieldValue(form, "receiver-last-name"),
+    email: formFieldValue(form, "receiver-email"),
+    mobile: buildAuMobileFromLocal(mobileLocal),
+    address: formFieldValue(form, "receiver-address"),
+    businessName: formFieldValue(form, "receiver-organization"),
+  };
+}
+
 export function buildSenderContactLine(draft: SenderContactDraft): string {
   const name = [draft.firstName.trim(), draft.lastName.trim()]
     .filter(Boolean)

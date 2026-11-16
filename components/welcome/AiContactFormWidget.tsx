@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useCallback, useEffect, useRef, type ReactNode } from "react";
 import type {
   ReceiverContactDraft,
   SenderContactDraft,
@@ -8,7 +8,11 @@ import type {
 import {
   buildAuMobileFromLocal,
   formatAuMobileLocalDisplay,
+  readReceiverContactFromForm,
+  readSenderContactFromForm,
 } from "@/lib/ai-booking-parse";
+
+const CONTACT_AUTOFILL_ANIMATION = "ppgo-contact-autofill-start";
 
 const FIELD_SHELL_IDLE =
   "rounded-xl border-2 border-neutral-200 bg-white transition-[border-color] duration-150";
@@ -93,21 +97,88 @@ function applyInputValue(
   apply(e.currentTarget.value);
 }
 
+function useContactFormDomSync(
+  locked: boolean | undefined,
+  read: (form: HTMLFormElement) => Partial<SenderContactDraft | ReceiverContactDraft>,
+  onChange: (patch: Partial<SenderContactDraft | ReceiverContactDraft>) => void,
+) {
+  const formRef = useRef<HTMLFormElement>(null);
+
+  const flushFromDomSync = useCallback(() => {
+    if (locked || !formRef.current) return;
+    onChange(read(formRef.current));
+  }, [locked, onChange, read]);
+
+  const flushFromDom = useCallback(() => {
+    if (locked || !formRef.current) return;
+    const apply = () => {
+      if (!formRef.current) return;
+      onChange(read(formRef.current));
+    };
+    apply();
+    queueMicrotask(apply);
+    window.requestAnimationFrame(() => {
+      apply();
+      window.requestAnimationFrame(apply);
+    });
+    window.setTimeout(apply, 0);
+    window.setTimeout(apply, 50);
+    window.setTimeout(apply, 150);
+  }, [locked, onChange, read]);
+
+  useEffect(() => {
+    const form = formRef.current;
+    if (!form || locked) return;
+
+    const onAnimationStart = (e: AnimationEvent) => {
+      if (e.animationName !== CONTACT_AUTOFILL_ANIMATION) return;
+      flushFromDom();
+    };
+
+    form.addEventListener("animationstart", onAnimationStart, true);
+    return () => form.removeEventListener("animationstart", onAnimationStart, true);
+  }, [flushFromDom, locked]);
+
+  const bindForm = {
+    ref: formRef,
+    onInput: flushFromDom,
+    onChange: flushFromDom,
+  };
+
+  return { bindForm, flushFromDom, flushFromDomSync };
+}
+
+function contactFieldInputProps(onAutoFill: () => void) {
+  return {
+    "data-chat-field": true,
+    onAnimationStart: (e: React.AnimationEvent<HTMLInputElement>) => {
+      if (e.animationName === CONTACT_AUTOFILL_ANIMATION) onAutoFill();
+    },
+  } as const;
+}
+
 function AuMobileField({
   locked,
   value,
   onChange,
   autoComplete = "tel-national",
   name,
+  onAutoFill,
+  onAutoFillSync,
 }: {
   locked?: boolean;
   value: string;
   onChange: (mobile: string) => void;
   autoComplete?: string;
   name?: string;
+  onAutoFill?: () => void;
+  onAutoFillSync?: () => void;
 }) {
   const localDisplay = formatAuMobileLocalDisplay(value);
-  const syncMobile = (raw: string) => onChange(buildAuMobileFromLocal(raw));
+  const syncMobile = (raw: string) => {
+    onAutoFillSync?.();
+    onChange(buildAuMobileFromLocal(raw));
+  };
 
   return (
     <FieldFrame
@@ -134,6 +205,7 @@ function AuMobileField({
           placeholder="XX XXX XXX"
           autoComplete={autoComplete}
           aria-label="Australian mobile number"
+          {...(onAutoFill ? contactFieldInputProps(onAutoFill) : {})}
         />
       )}
     </FieldFrame>
@@ -151,11 +223,21 @@ export function AiSenderContactFormWidget({
   onChange: (patch: Partial<SenderContactDraft>) => void;
   embedded?: boolean;
 }) {
+  const { bindForm, flushFromDom, flushFromDomSync } = useContactFormDomSync(
+    locked,
+    readSenderContactFromForm,
+    onChange,
+  );
+  const fieldProps = contactFieldInputProps(flushFromDom);
+
   return (
     <form
       data-chat-form
-      autoComplete="on"
+      ref={bindForm.ref}
+      autoComplete="section-sender on"
       onSubmit={(e) => e.preventDefault()}
+      onInput={bindForm.onInput}
+      onChange={bindForm.onChange}
       className={
         embedded
           ? "pt-1"
@@ -169,14 +251,16 @@ export function AiSenderContactFormWidget({
           ) : (
             <input
               type="text"
+              id="sender-first-name"
               name="sender-first-name"
               value={draft.firstName}
               onChange={(e) => onChange({ firstName: e.target.value })}
               onInput={(e) => applyInputValue(e, (v) => onChange({ firstName: v }))}
               className={`${FIELD_INPUT} w-full`}
               placeholder="First name"
-              autoComplete="billing given-name"
+              autoComplete="section-sender given-name"
               aria-label="First name"
+              {...fieldProps}
             />
           )}
         </FieldFrame>
@@ -189,14 +273,16 @@ export function AiSenderContactFormWidget({
           ) : (
             <input
               type="text"
+              id="sender-last-name"
               name="sender-last-name"
               value={draft.lastName}
               onChange={(e) => onChange({ lastName: e.target.value })}
               onInput={(e) => applyInputValue(e, (v) => onChange({ lastName: v }))}
               className={`${FIELD_INPUT} w-full`}
               placeholder="Last name"
-              autoComplete="billing family-name"
+              autoComplete="section-sender family-name"
               aria-label="Last name"
+              {...fieldProps}
             />
           )}
         </FieldFrame>
@@ -209,14 +295,16 @@ export function AiSenderContactFormWidget({
           ) : (
             <input
               type="email"
+              id="sender-email"
               name="sender-email"
               value={draft.email}
               onChange={(e) => onChange({ email: e.target.value })}
               onInput={(e) => applyInputValue(e, (v) => onChange({ email: v }))}
               className={`${FIELD_INPUT} w-full`}
               placeholder="you@example.com"
-              autoComplete="billing email"
+              autoComplete="section-sender email"
               aria-label="Email"
+              {...fieldProps}
             />
           )}
         </FieldFrame>
@@ -227,7 +315,9 @@ export function AiSenderContactFormWidget({
           locked={locked}
           value={draft.mobile}
           name="sender-mobile"
-          autoComplete="billing tel-national"
+          autoComplete="section-sender tel-national"
+          onAutoFillSync={flushFromDomSync}
+          onAutoFill={flushFromDom}
           onChange={(mobile) => onChange({ mobile })}
         />
       </FormSection>
@@ -248,8 +338,9 @@ export function AiSenderContactFormWidget({
                 }
                 className={`${FIELD_INPUT} w-full`}
                 placeholder="Optional"
-                autoComplete="billing organization"
+                autoComplete="section-sender organization"
                 aria-label="Business name (optional)"
+                {...fieldProps}
               />
             )}
           </FieldFrame>
@@ -268,11 +359,21 @@ export function AiReceiverContactFormWidget({
   draft: ReceiverContactDraft;
   onChange: (patch: Partial<ReceiverContactDraft>) => void;
 }) {
+  const { bindForm, flushFromDom, flushFromDomSync } = useContactFormDomSync(
+    locked,
+    readReceiverContactFromForm,
+    onChange,
+  );
+  const fieldProps = contactFieldInputProps(flushFromDom);
+
   return (
     <form
       data-chat-form
-      autoComplete="on"
+      ref={bindForm.ref}
+      autoComplete="section-receiver on"
       onSubmit={(e) => e.preventDefault()}
+      onInput={bindForm.onInput}
+      onChange={bindForm.onChange}
       className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm"
     >
       <FormSection step="1" title="FIRST NAME">
@@ -282,14 +383,16 @@ export function AiReceiverContactFormWidget({
           ) : (
             <input
               type="text"
+              id="receiver-first-name"
               name="receiver-first-name"
               value={draft.firstName}
               onChange={(e) => onChange({ firstName: e.target.value })}
               onInput={(e) => applyInputValue(e, (v) => onChange({ firstName: v }))}
               className={`${FIELD_INPUT} w-full`}
               placeholder="First name"
-              autoComplete="shipping given-name"
+              autoComplete="section-receiver given-name"
               aria-label="First name"
+              {...fieldProps}
             />
           )}
         </FieldFrame>
@@ -302,14 +405,16 @@ export function AiReceiverContactFormWidget({
           ) : (
             <input
               type="text"
+              id="receiver-last-name"
               name="receiver-last-name"
               value={draft.lastName}
               onChange={(e) => onChange({ lastName: e.target.value })}
               onInput={(e) => applyInputValue(e, (v) => onChange({ lastName: v }))}
               className={`${FIELD_INPUT} w-full`}
               placeholder="Last name"
-              autoComplete="shipping family-name"
+              autoComplete="section-receiver family-name"
               aria-label="Last name"
+              {...fieldProps}
             />
           )}
         </FieldFrame>
@@ -320,7 +425,9 @@ export function AiReceiverContactFormWidget({
           locked={locked}
           value={draft.mobile}
           name="receiver-mobile"
-          autoComplete="shipping tel-national"
+          autoComplete="section-receiver tel-national"
+          onAutoFillSync={flushFromDomSync}
+          onAutoFill={flushFromDom}
           onChange={(mobile) => onChange({ mobile })}
         />
       </FormSection>
@@ -332,14 +439,16 @@ export function AiReceiverContactFormWidget({
           ) : (
             <input
               type="email"
+              id="receiver-email"
               name="receiver-email"
               value={draft.email}
               onChange={(e) => onChange({ email: e.target.value })}
               onInput={(e) => applyInputValue(e, (v) => onChange({ email: v }))}
               className={`${FIELD_INPUT} w-full`}
               placeholder="them@example.com"
-              autoComplete="shipping email"
+              autoComplete="section-receiver email"
               aria-label="Email"
+              {...fieldProps}
             />
           )}
         </FieldFrame>
@@ -358,14 +467,16 @@ export function AiReceiverContactFormWidget({
           ) : (
             <input
               type="text"
+              id="receiver-address"
               name="receiver-address"
               value={draft.address}
               onChange={(e) => onChange({ address: e.target.value })}
               onInput={(e) => applyInputValue(e, (v) => onChange({ address: v }))}
               className={`${FIELD_INPUT} w-full`}
               placeholder="Street, suburb, state"
-              autoComplete="shipping street-address"
+              autoComplete="section-receiver street-address"
               aria-label="Delivery address"
+              {...fieldProps}
             />
           )}
         </FieldFrame>
@@ -379,6 +490,7 @@ export function AiReceiverContactFormWidget({
             ) : (
               <input
                 type="text"
+                id="receiver-organization"
                 name="receiver-organization"
                 value={draft.businessName}
                 onChange={(e) => onChange({ businessName: e.target.value })}
@@ -387,8 +499,9 @@ export function AiReceiverContactFormWidget({
                 }
                 className={`${FIELD_INPUT} w-full`}
                 placeholder="Optional"
-                autoComplete="shipping organization"
+                autoComplete="section-receiver organization"
                 aria-label="Business name (optional)"
+                {...fieldProps}
               />
             )}
           </FieldFrame>
