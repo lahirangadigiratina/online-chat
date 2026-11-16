@@ -476,19 +476,26 @@ function AiRecommendOver100Message({
   const serviceName = aiDeliveryServiceNameForMessage(sizeId, valueDollars);
   const quoteRec = { ...rec, parcelProtection: false };
   const totalStr = formatAiMoney(buildAiSuggestedTotal(valueDollars, quoteRec));
+  const totalWithProtectionStr = formatAiMoney(
+    buildAiSuggestedTotal(valueDollars, { ...rec, parcelProtection: true }),
+  );
+  const valueStr = formatDeclaredParcelValue(valueDollars);
   const protectionFeeStr = formatAiMoney(protectionFeeForValue(valueDollars));
 
   return (
     <span className="block space-y-3">
       <span className="block">
         Sending your {sizePhrase} parcel to {destination} with {serviceName}{" "}
-        will cost <span className="font-semibold">{totalStr}</span>.
+        will cost <span className="font-semibold">{totalStr}</span> (based on
+        your {valueStr} parcel value).
       </span>
       <span className="block">
         Just a little heads-up! 😊 Since your parcel is valued at over $100,
         we&apos;d recommend adding Parcel Protection for{" "}
         <span className="font-semibold">{protectionFeeStr}</span> (2.5% on the
-        value over $100) to give you extra peace of mind.
+        value over $100) — your total would be{" "}
+        <span className="font-semibold">{totalWithProtectionStr}</span> (
+        {totalStr} delivery + {protectionFeeStr} Parcel Protection).
       </span>
       <span className="block">Would you like to add it? 😊</span>
     </span>
@@ -1669,8 +1676,8 @@ export function AiAssistedBookingFlow({
       handlePendingIntakeReply(text);
       return;
     }
-    fillDraft(text);
-    window.requestAnimationFrame(() => handleSubmit());
+    setComposer("");
+    handleSubmit(text);
   };
   submitDraftRef.current = submitDraft;
 
@@ -2480,8 +2487,8 @@ export function AiAssistedBookingFlow({
     setComposer("");
   };
 
-  const handleSubmit = () => {
-    const text = composer.trim();
+  const handleSubmit = (overrideText?: string) => {
+    const text = (overrideText ?? composer).trim();
 
     if (text && /start\s*over/i.test(text)) {
       requestStartOver();
@@ -2938,14 +2945,14 @@ export function AiAssistedBookingFlow({
             label="Yes please"
             disabled={!widgetsLive("recommend")}
             onClick={() => {
-              if (widgetsLive("recommend")) fillDraft("Yes please");
+              if (widgetsLive("recommend")) submitDraft("Yes please");
             }}
           />
           <QuickChip
             label="No thanks"
             disabled={!widgetsLive("recommend")}
             onClick={() => {
-              if (widgetsLive("recommend")) fillDraft("No thanks");
+              if (widgetsLive("recommend")) submitDraft("No thanks");
             }}
           />
         </div>
@@ -3013,14 +3020,14 @@ export function AiAssistedBookingFlow({
               label="Sender"
               disabled={!widgetsLive("confirmParties")}
               onClick={() => {
-                if (widgetsLive("confirmParties")) fillDraft("Sender");
+                if (widgetsLive("confirmParties")) submitDraft("Sender");
               }}
             />
             <QuickChip
               label="Receiver"
               disabled={!widgetsLive("confirmParties")}
               onClick={() => {
-                if (widgetsLive("confirmParties")) fillDraft("Receiver");
+                if (widgetsLive("confirmParties")) submitDraft("Receiver");
               }}
             />
           </ActiveStepChips>
@@ -3035,7 +3042,7 @@ export function AiAssistedBookingFlow({
             label="Looks good"
             disabled={!widgetsLive("confirmParties")}
             onClick={() => {
-              if (widgetsLive("confirmParties")) fillDraft("Looks good");
+              if (widgetsLive("confirmParties")) submitDraft("Looks good");
             }}
           />
           <QuickChip
@@ -3056,14 +3063,14 @@ export function AiAssistedBookingFlow({
             label="Yes, add packaging"
             disabled={!widgetsLive("packaging")}
             onClick={() => {
-              if (widgetsLive("packaging")) fillDraft("Yes, add packaging");
+              if (widgetsLive("packaging")) submitDraft("Yes, add packaging");
             }}
           />
           <QuickChip
             label="No, thanks"
             disabled={!widgetsLive("packaging")}
             onClick={() => {
-              if (widgetsLive("packaging")) fillDraft("No, thanks");
+              if (widgetsLive("packaging")) submitDraft("No, thanks");
             }}
           />
         </ActiveStepChips>
@@ -3105,7 +3112,7 @@ export function AiAssistedBookingFlow({
               selected={/^yes\b/i.test(notifyChoice)}
               disabled={!widgetsLive("notify")}
               onClick={() => {
-                if (widgetsLive("notify")) fillDraft("Yes");
+                if (widgetsLive("notify")) submitDraft("Yes");
               }}
             />
             <NotifyReceiverOption
@@ -3114,7 +3121,7 @@ export function AiAssistedBookingFlow({
               selected={/^no\b/i.test(notifyChoice)}
               disabled={!widgetsLive("notify")}
               onClick={() => {
-                if (widgetsLive("notify")) fillDraft("No");
+                if (widgetsLive("notify")) submitDraft("No");
               }}
             />
           </div>
@@ -3132,7 +3139,7 @@ export function AiAssistedBookingFlow({
           />
           <QuickChip
             label="Continue to payment"
-            onClick={() => fillDraft("Continue to payment")}
+            onClick={() => submitDraft("Continue to payment")}
           />
         </ActiveStepChips>
       );
@@ -3192,8 +3199,8 @@ export function AiAssistedBookingFlow({
             total={formatAiMoney(total)}
             selected={paymentHighlight}
             disabled={!widgetsLive("payment")}
-            onSelectOnline={() => fillDraft("Pay online")}
-            onSelectInStore={() => fillDraft("Pay in store")}
+            onSelectOnline={() => submitDraft("Pay online")}
+            onSelectInStore={() => submitDraft("Pay in store")}
           />
           <ActiveStepChips step="payment" className="mt-2" />
         </>
@@ -3206,7 +3213,7 @@ export function AiAssistedBookingFlow({
         <QuickChip
           label="Done"
           disabled={!widgetsLive("booked")}
-          onClick={() => fillDraft("Done")}
+          onClick={() => submitDraft("Done")}
         />
       );
     }

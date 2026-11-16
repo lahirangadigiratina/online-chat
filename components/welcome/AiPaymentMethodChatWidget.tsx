@@ -171,8 +171,7 @@ export function AiPaymentMethodChatWidget({
         Card details go to our secure payment provider, never to PGo
       </p>
       <p className="text-center text-[13px] text-neutral-500">
-        Choose an option, then tap <span className="font-semibold text-[#0B1B32]">Send</span> to
-        book · {total}
+        Choose how you&apos;d like to pay · {total}
       </p>
     </div>
   );

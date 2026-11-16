@@ -62,9 +62,18 @@ export function protectionFeeForValue(valueDollars: number): number {
 }
 
 /** Copy when offering optional Parcel Protection above $100 declared value. */
-export function parcelProtectionOfferMessage(valueDollars: number): string {
+export function parcelProtectionOfferMessage(
+  valueDollars: number,
+  rec: AiRecommendation,
+): string {
   const feeStr = formatAiMoney(protectionFeeForValue(valueDollars));
-  return `Just a little heads-up! 😊 Since your parcel is valued at over $100, we'd recommend adding Parcel Protection for ${feeStr} (2.5% on the value over $100) to give you extra peace of mind.`;
+  const deliveryStr = formatAiMoney(
+    buildAiSuggestedTotal(valueDollars, { ...rec, parcelProtection: false }),
+  );
+  const totalWithProtectionStr = formatAiMoney(
+    buildAiSuggestedTotal(valueDollars, { ...rec, parcelProtection: true }),
+  );
+  return `Just a little heads-up! 😊 Since your parcel is valued at over $100, we'd recommend adding Parcel Protection for ${feeStr} (2.5% on the value over $100) — your total would be ${totalWithProtectionStr} (${deliveryStr} delivery + ${feeStr} Parcel Protection).`;
 }
 
 export function buildAiSuggestedTotal(
@@ -111,7 +120,7 @@ export function buildAiRecommendBotText(
     return lead;
   }
 
-  return `${lead}\n\n${parcelProtectionOfferMessage(valueDollars)}`;
+  return `${lead}\n\n${parcelProtectionOfferMessage(valueDollars, rec)}`;
 
 }
 
