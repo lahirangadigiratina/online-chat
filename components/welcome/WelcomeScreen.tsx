@@ -1354,19 +1354,19 @@ export function WelcomeScreen() {
 
       <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-4 pb-8 sm:px-5">
         <OptionCard
-          tone="voice"
-          title="Speak to me"
-          detail="Let's figure out what we are sending"
-          icon={<MicIcon />}
-          onClick={() => setScreen("voice")}
-        />
-        <OptionCard
           tone="prompt"
           recommended
           title="Chat with me"
           detail="Tell me what you're sending — I'll help you"
           icon={<PromptIcon />}
           onClick={() => openAiBooking()}
+        />
+        <OptionCard
+          tone="voice"
+          title="Speak to me"
+          detail="Let's figure out what we are sending"
+          icon={<MicIcon />}
+          onClick={() => setScreen("voice")}
         />
 
         <div className="mt-auto border-t border-neutral-200/90 pt-5">

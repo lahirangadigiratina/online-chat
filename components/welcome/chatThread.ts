@@ -149,8 +149,8 @@ export function resolveParcelPackagingChoice(
   return fallback ?? null;
 }
 
-function parcelOptionalPhotoBot(selectedSizeLabel: string) {
-  return `${selectedSizeLabel} it is. Want to add a photo of the parcel? It's optional, but it helps the PARCELPOINT match it at drop-off and supports any Parcel Protection claim.`;
+function parcelOptionalPhotoBot() {
+  return "Want to add a photo of the parcel? It's optional, but it helps the PARCELPOINT match it at drop-off and supports any Parcel Protection claim.";
 }
 
 export function parcelPhotoSkipBot(parcelPointBoxLabel: string) {
@@ -215,7 +215,7 @@ export function buildParcelProgressMessages(
   items.push({
     id: "parcel-photo-bot",
     role: "bot",
-    content: parcelOptionalPhotoBot(options.selectedSizeLabel),
+    content: parcelOptionalPhotoBot(),
   });
 
   if (phase === "photo") return items;
@@ -1208,7 +1208,7 @@ export function buildBookingConfirmedDetails(
     total: summary.total,
     statusBadge: `✓ Paid ${summary.total} by card`,
     badgeVariant: "cardPaid",
-    bookedMessage: `Booked! 🥳 Payment's done. Show this barcode at the counter and hand your parcel over — we'll label it and send it to ${receiverName}. It hasn't been sent yet; that happens once you've handed it to us.`,
+    bookedMessage: `Booked! 🥳 Payment's done. Show this barcode at the counter and hand your parcel over — we'll label it and send it to ${receiverName}.`,
     barcodeCaption: "[TRACKING ID]",
     infoSectionTitle: "Tracking",
     infoPrimary: destinationLine,

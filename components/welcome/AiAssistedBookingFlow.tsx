@@ -11,6 +11,7 @@ import {
   buildIntakeComposerLine,
   formatAiMoney,
   formatDeclaredParcelValue,
+  protectionFeeForValue,
   demoPreset,
   aiBookingStarterPrefill,
   type AiBookingDemo,
@@ -99,6 +100,9 @@ const RECEIVER_NOTIFICATIONS_INFO =
 
 const PACKAGING_STEP_PROMPT =
   "Would you like us to provide packaging for your parcel? It's just $2 extra! 😊";
+
+const PARCEL_PHOTO_STEP_PROMPT =
+  "Want to add a photo of the parcel? It's optional, but it helps the PARCELPOINT match it at drop-off and supports any Parcel Protection claim.";
 
 const PACKAGING_CHIP_OPEN_PROMPT = `We can add store packaging for just $2 extra — we'll have a box ready at the PARCELPOINT when you drop off. 😊
 
@@ -472,6 +476,7 @@ function AiRecommendOver100Message({
   const serviceName = aiDeliveryServiceNameForMessage(sizeId, valueDollars);
   const quoteRec = { ...rec, parcelProtection: false };
   const totalStr = formatAiMoney(buildAiSuggestedTotal(valueDollars, quoteRec));
+  const protectionFeeStr = formatAiMoney(protectionFeeForValue(valueDollars));
 
   return (
     <span className="block space-y-3">
@@ -481,8 +486,9 @@ function AiRecommendOver100Message({
       </span>
       <span className="block">
         Just a little heads-up! 😊 Since your parcel is valued at over $100,
-        we&apos;d recommend adding Parcel Protection to give you extra peace of
-        mind.
+        we&apos;d recommend adding Parcel Protection for{" "}
+        <span className="font-semibold">{protectionFeeStr}</span> (2.5% on the
+        value over $100) to give you extra peace of mind.
       </span>
       <span className="block">Would you like to add it? 😊</span>
     </span>
@@ -950,12 +956,6 @@ export function AiAssistedBookingFlow({
       },
     ]);
   };
-
-  const sizeLabel =
-    AI_SIZE_OPTIONS.find((s) => s.id === sizeId)?.label ?? "Parcel";
-
-  const photoBotMessage = () =>
-    `${sizeLabel} it is. Want to add a photo of the parcel? It's optional, but it helps the PARCELPOINT match it at drop-off and supports any Parcel Protection claim.`;
 
   const notifyBotMessage = () => {
     const name = receiverFirstName;
@@ -2418,7 +2418,7 @@ export function AiAssistedBookingFlow({
     }
     setNotifyReceiver(true);
     pushBot(RECEIVER_NOTIFICATIONS_INFO, "receiver");
-    pushBot(photoBotMessage(), "photo");
+    pushBot(PARCEL_PHOTO_STEP_PROMPT, "photo");
     goToPhase("photo");
     setComposer("");
   };

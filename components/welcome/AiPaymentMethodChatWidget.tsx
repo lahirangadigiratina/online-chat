@@ -120,7 +120,7 @@ export function AiPaymentMethodChatWidget({
                 Pay online
               </span>
               <span className="mt-0.5 block text-sm text-neutral-500">
-                Card, Google Pay or Apple Pay · label ready straight away
+                Card, Google Pay or Apple Pay
               </span>
             </span>
             <RadioMark selected={selected === "online"} />

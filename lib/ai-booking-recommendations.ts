@@ -61,6 +61,12 @@ export function protectionFeeForValue(valueDollars: number): number {
   return Math.round((valueDollars - 100) * 0.025 * 100) / 100;
 }
 
+/** Copy when offering optional Parcel Protection above $100 declared value. */
+export function parcelProtectionOfferMessage(valueDollars: number): string {
+  const feeStr = formatAiMoney(protectionFeeForValue(valueDollars));
+  return `Just a little heads-up! 😊 Since your parcel is valued at over $100, we'd recommend adding Parcel Protection for ${feeStr} (2.5% on the value over $100) to give you extra peace of mind.`;
+}
+
 export function buildAiSuggestedTotal(
   valueDollars: number,
   rec: AiRecommendation,
@@ -105,7 +111,7 @@ export function buildAiRecommendBotText(
     return lead;
   }
 
-  return `${lead}\n\nJust a little heads-up! 😊 Since your parcel is valued at over $100, we'd recommend adding Parcel Protection to give you extra peace of mind.`;
+  return `${lead}\n\n${parcelProtectionOfferMessage(valueDollars)}`;
 
 }
 
@@ -325,7 +331,7 @@ export function buildAiBookingConfirmedDetails(options: {
   return {
     variant: "card" as const,
     statusBadge: `✓ Paid ${totalStr} by card`,
-    bookedMessage: `Booked! 🎉 Payment's done. Show this barcode at the counter and hand your parcel over — we'll label it and send it to ${options.receiverName}. It hasn't been sent yet; that happens once you've handed it to us.`,
+    bookedMessage: `Booked! 🎉 Payment's done. Show this barcode at the counter and hand your parcel over — we'll label it and send it to ${options.receiverName}.`,
     barcodeCaption: "[TRACKING ID]",
     infoSectionTitle: "Tracking",
     infoPrimary: destinationLine,
