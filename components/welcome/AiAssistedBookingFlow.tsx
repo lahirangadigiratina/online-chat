@@ -1644,11 +1644,19 @@ export function AiAssistedBookingFlow({
   };
 
   const patchSenderDraft = (patch: Partial<SenderContactDraft>) => {
-    setSenderDraft((prev) => ({ ...prev, ...patch }));
+    setSenderDraft((prev) => {
+      const next = { ...prev, ...patch };
+      setComposer(buildSenderContactLine(next));
+      return next;
+    });
   };
 
   const patchReceiverDraft = (patch: Partial<ReceiverContactDraft>) => {
-    setReceiverDraft((prev) => ({ ...prev, ...patch }));
+    setReceiverDraft((prev) => {
+      const next = { ...prev, ...patch };
+      setComposer(buildReceiverContactLine(next));
+      return next;
+    });
   };
 
   const handleComposerChange = (value: string) => {
