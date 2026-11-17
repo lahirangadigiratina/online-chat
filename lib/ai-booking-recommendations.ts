@@ -73,7 +73,7 @@ export function parcelProtectionOfferMessage(
   const totalWithProtectionStr = formatAiMoney(
     buildAiSuggestedTotal(valueDollars, { ...rec, parcelProtection: true }),
   );
-  return `Just a little heads-up! 😊 Since your parcel is valued at over $100, we'd recommend adding Parcel Protection for ${feeStr} (2.5% on the value over $100) — your total would be ${totalWithProtectionStr} (${deliveryStr} delivery + ${feeStr} Parcel Protection).`;
+  return `Just a little heads-up! 😊 Since your parcel is valued at over $100, we'd recommend adding Parcel Protection for ${feeStr} — your total would be ${totalWithProtectionStr} (${deliveryStr} delivery + ${feeStr} Parcel Protection).`;
 }
 
 export function buildAiSuggestedTotal(

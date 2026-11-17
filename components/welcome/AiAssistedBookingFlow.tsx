@@ -492,8 +492,8 @@ function AiRecommendOver100Message({
       <span className="block">
         Just a little heads-up! 😊 Since your parcel is valued at over $100,
         we&apos;d recommend adding Parcel Protection for{" "}
-        <span className="font-semibold">{protectionFeeStr}</span> (2.5% on the
-        value over $100) — your total would be{" "}
+        <span className="font-semibold">{protectionFeeStr}</span> — your total
+        would be{" "}
         <span className="font-semibold">{totalWithProtectionStr}</span> (
         {totalStr} delivery + {protectionFeeStr} Parcel Protection).
       </span>
