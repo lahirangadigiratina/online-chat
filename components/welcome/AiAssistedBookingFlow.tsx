@@ -96,7 +96,7 @@ const RECEIVER_INTRO_PROMPT =
   "Thanks — got your details! 😊 Who should we send your parcel to?";
 
 const RECEIVER_NOTIFICATIONS_INFO =
-  "Awesome — we've got the receiver's details too! 😊 They'll get delivery updates by text and email as the parcel moves. If you'd rather we don't notify them, just tell us before you pay.";
+  "Awesome — we've got the receiver's details too! 😊 They'll get delivery updates by text and email as the parcel moves. Would you like us to notify them?";
 
 const PACKAGING_STEP_PROMPT =
   "Would you like us to provide packaging for your parcel? It's just $2 extra! 😊";
@@ -247,7 +247,7 @@ function emptySendNudgeForPhase(
     case "photo":
       return "Add a parcel photo above, or send Skip for now to move on. 😊";
     case "notify":
-      return "Should we notify your receiver by text? Reply yes or no. 😊";
+      return "Should we notify your receiver? Tap Yes, notify them or No thanks — or type your reply. 😊";
     case "review":
       if (options?.reviewEditTarget) {
         return "Update the text in the box below and send when you're ready. 😊";
@@ -1116,8 +1116,22 @@ export function AiAssistedBookingFlow({
 
   const completeNotifyStep = (notify: boolean, userLine?: string) => {
     setNotifyReceiver(notify);
-    const line = userLine?.trim() || (notify ? "Yes" : "No");
+    const line =
+      userLine?.trim() || (notify ? "Yes, notify them" : "No thanks");
     pushUser(line);
+    if (!notify) {
+      pushBot(
+        "No worries — we won't send them delivery updates. 😊",
+        "notify",
+      );
+    }
+    const hasPhotoTurn = thread.some((m) => m.anchor === "photo");
+    if (!hasPhotoTurn) {
+      pushBot(PARCEL_PHOTO_STEP_PROMPT, "photo");
+      goToPhase("photo");
+      setComposer("");
+      return;
+    }
     goToReviewPrompt();
   };
 
@@ -2442,10 +2456,9 @@ export function AiAssistedBookingFlow({
       setComposer("");
       return;
     }
-    setNotifyReceiver(true);
-    pushBot(RECEIVER_NOTIFICATIONS_INFO, "receiver");
-    pushBot(PARCEL_PHOTO_STEP_PROMPT, "photo");
-    goToPhase("photo");
+    setNotifyReceiver(null);
+    pushBot(RECEIVER_NOTIFICATIONS_INFO, "notify");
+    goToPhase("notify");
     setComposer("");
   };
 
@@ -2703,11 +2716,11 @@ export function AiAssistedBookingFlow({
 
     if (phase === "notify") {
       if (!text) return;
-      if (/^yes\b/i.test(text)) {
+      if (/^yes\b/i.test(text) || /notify them/i.test(text)) {
         completeNotifyStep(true, text);
         return;
       }
-      if (/^no\b/i.test(text)) {
+      if (/^no\b/i.test(text) || /^no thanks/i.test(text)) {
         completeNotifyStep(false, text);
         return;
       }
@@ -3115,37 +3128,23 @@ export function AiAssistedBookingFlow({
     }
 
     if (anchor === "notify") {
-      const name = receiverFirstName;
-      const noDetail =
-        name === "your receiver"
-          ? "They won't get updates from us"
-          : `${name} won't get updates from us`;
-      const notifyChoice = composer.trim();
       return (
-        <>
-          <div className="space-y-2">
-            <NotifyReceiverOption
-              title="Yes"
-              detail="Updates by text and email"
-              badge="Free"
-              selected={/^yes\b/i.test(notifyChoice)}
-              disabled={!widgetsLive("notify")}
-              onClick={() => {
-                if (widgetsLive("notify")) submitDraft("Yes");
-              }}
-            />
-            <NotifyReceiverOption
-              title="No"
-              detail={noDetail}
-              selected={/^no\b/i.test(notifyChoice)}
-              disabled={!widgetsLive("notify")}
-              onClick={() => {
-                if (widgetsLive("notify")) submitDraft("No");
-              }}
-            />
-          </div>
-          <ActiveStepChips step="notify" className="mt-2" />
-        </>
+        <ActiveStepChips step="notify">
+          <QuickChip
+            label="Yes, notify them"
+            disabled={!widgetsLive("notify")}
+            onClick={() => {
+              if (widgetsLive("notify")) submitDraft("Yes, notify them");
+            }}
+          />
+          <QuickChip
+            label="No thanks"
+            disabled={!widgetsLive("notify")}
+            onClick={() => {
+              if (widgetsLive("notify")) submitDraft("No thanks");
+            }}
+          />
+        </ActiveStepChips>
       );
     }
 

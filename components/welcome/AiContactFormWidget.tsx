@@ -323,7 +323,7 @@ export function AiSenderContactFormWidget({
       </FormSection>
 
       {draft.businessName.trim() || !locked ? (
-        <FormSection step="5" title="BUSINESS" className="mt-5">
+        <FormSection step="5" title="BUSINESS NAME" className="mt-5">
           <FieldFrame locked={locked} className="px-3.5 py-3">
             {locked ? (
               <LockedValue value={draft.businessName || "—"} />
@@ -483,7 +483,7 @@ export function AiReceiverContactFormWidget({
       </FormSection>
 
       {draft.businessName.trim() || !locked ? (
-        <FormSection step="6" title="BUSINESS" className="mt-5">
+        <FormSection step="6" title="BUSINESS NAME" className="mt-5">
           <FieldFrame locked={locked} className="px-3.5 py-3">
             {locked ? (
               <LockedValue value={draft.businessName || "—"} />
